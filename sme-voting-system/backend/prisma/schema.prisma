@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Shareholder {
+  id            Int      @id @default(autoincrement())
+  walletAddress String   @unique @map("wallet_address") @db.VarChar(42)
+  name          String   @db.VarChar(255)
+  email         String   @unique @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  shares        Share?
+  votes         Vote[]
+
+  @@map("shareholders")
+}
+
+model Share {
+  id            Int         @id @default(autoincrement())
+  shareholderId Int         @unique @map("shareholder_id")
+  shares        Int         @default(0)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
+
+  @@map("shares")
+}
+
+model Proposal {
+  id          Int      @id @default(autoincrement())
+  proposalId  Int      @unique @map("proposal_id")
+  title       String   @db.VarChar(500)
+  description String?  @db.Text
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  votes       Vote[]
+
+  @@map("proposals")
+}
+
+model AuthNonce {
+  id            Int      @id @default(autoincrement())
+  walletAddress String   @unique @map("wallet_address") @db.VarChar(42)
+  nonce         String   @db.VarChar(255)
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("auth_nonces")
+}
+
+model Vote {
+  id            Int         @id @default(autoincrement())
+  shareholderId Int         @map("shareholder_id")
+  proposalId    Int         @map("proposal_id")
+  voteChoice    Boolean     @map("vote_choice")
+  txHash        String?     @map("tx_hash") @db.VarChar(66)
+  votedAt       DateTime    @default(now()) @map("voted_at")
+  proposal      Proposal    @relation(fields: [proposalId], references: [proposalId], onDelete: Cascade)
+  shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
+
+  @@unique([shareholderId, proposalId])
+  @@index([proposalId], map: "votes_proposal_id_fkey")
+  @@map("votes")
+}

@@ -1,0 +1,29 @@
+{
+  "name": "sme-voting-system",
+  "version": "1.0.0",
+  "description": "Blockchain-Based Secure Shareholder Voting System for SMEs",
+  "private": true,
+  "workspaces": [
+    "smart-contracts",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "contracts:compile": "npm run compile --workspace=smart-contracts",
+    "contracts:test": "npm run test --workspace=smart-contracts",
+    "contracts:node": "npm run node --workspace=smart-contracts",
+    "backend:dev": "npm run dev --workspace=backend",
+    "frontend:dev": "npm run dev --workspace=frontend"
+  },
+  "keywords": [
+    "blockchain",
+    "voting",
+    "ethereum",
+    "solidity",
+    "shareholders",
+    "sme"
+  ],
+  "author": "",
+  "license": "MIT"
+}
