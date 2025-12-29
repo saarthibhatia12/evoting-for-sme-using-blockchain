@@ -221,3 +221,42 @@ export const getTotalShares = async (req: AuthenticatedRequest, res: Response): 
     });
   }
 };
+
+/**
+ * POST /shareholders/fund/:walletAddress
+ * Fund a shareholder wallet with ETH for gas fees (Admin only, for testing)
+ */
+export const fundShareholderWallet = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { walletAddress } = req.params;
+    const { amount } = req.body;
+
+    if (!walletAddress) {
+      res.status(400).json({
+        success: false,
+        error: 'Wallet address is required',
+      });
+      return;
+    }
+
+    const ethAmount = amount || '10.0'; // Default 10 ETH
+
+    const result = await shareholderService.fundShareholderWallet(walletAddress, ethAmount);
+
+    res.json({
+      success: true,
+      data: {
+        walletAddress,
+        amount: ethAmount,
+        txHash: result.txHash,
+      },
+      message: `Wallet funded with ${ethAmount} ETH for gas fees`,
+    });
+  } catch (error: any) {
+    console.error('❌ Error funding wallet:', error.message);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to fund wallet',
+    });
+  }
+};

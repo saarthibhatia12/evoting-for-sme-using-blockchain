@@ -43,6 +43,10 @@ class BlockchainService {
   private signer: Wallet | null = null;
   private contract: Contract | null = null;
   private isInitialized: boolean = false;
+  
+  // Transaction queue to prevent nonce conflicts
+  private pendingNonce: number | null = null;
+  private txLock: Promise<void> = Promise.resolve();
 
   /**
    * Initialize the blockchain connection
@@ -140,41 +144,122 @@ class BlockchainService {
     return await this.contract!.getAdmin();
   }
 
+  /**
+   * Wait for a short delay to allow nonce to update
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Execute a transaction with queue to prevent nonce conflicts
+   * Ensures transactions are serialized to prevent nonce collisions
+   */
+  private async queueTransaction<T>(fn: () => Promise<T>): Promise<T> {
+    // Chain this transaction onto the queue
+    const previousLock = this.txLock;
+    let releaseLock: () => void;
+    
+    // Create new lock for this transaction
+    this.txLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    
+    try {
+      // Wait for previous transaction to complete
+      await previousLock;
+      
+      // Execute the transaction
+      const result = await fn();
+      
+      // Small delay to ensure nonce is updated on the node
+      await this.delay(50);
+      
+      return result;
+    } finally {
+      // Release the lock
+      releaseLock!();
+    }
+  }
+
   // ============ Shareholder Functions ============
 
   /**
    * Add a shareholder to the smart contract
    * @param shareholderAddress - Wallet address of the shareholder
    * @param shares - Number of shares to assign
+   * @param options - Optional settings (skipFunding: skip auto-funding)
    */
-  async addShareholder(shareholderAddress: string, shares: number): Promise<TransactionResult> {
+  async addShareholder(
+    shareholderAddress: string, 
+    shares: number,
+    options: { skipFunding?: boolean } = {}
+  ): Promise<TransactionResult> {
     this.ensureInitialized();
     
-    try {
-      console.log(`📝 Adding shareholder: ${shareholderAddress} with ${shares} shares`);
-      
-      const tx: ContractTransactionResponse = await this.contract!.addShareholder(
-        shareholderAddress,
-        shares
-      );
-      
-      // Wait for transaction confirmation
-      const receipt = await tx.wait();
-      
-      console.log(`✅ Shareholder added. TX: ${tx.hash}`);
-      
-      return {
-        success: true,
-        txHash: tx.hash,
-      };
-    } catch (error: any) {
-      console.error('❌ Failed to add shareholder:', error.message);
-      return {
-        success: false,
-        txHash: '',
-        error: error.message || 'Failed to add shareholder',
-      };
-    }
+    return this.queueTransaction(async () => {
+      try {
+        console.log(`📝 Adding shareholder: ${shareholderAddress} with ${shares} shares`);
+        
+        const tx: ContractTransactionResponse = await this.contract!.addShareholder(
+          shareholderAddress,
+          shares
+        );
+        
+        // Wait for transaction confirmation
+        await tx.wait();
+        
+        console.log(`✅ Shareholder added. TX: ${tx.hash}`);
+        
+        return {
+          success: true,
+          txHash: tx.hash,
+        };
+      } catch (error: any) {
+        console.error('❌ Failed to add shareholder:', error.message);
+        return {
+          success: false,
+          txHash: '',
+          error: error.message || 'Failed to add shareholder',
+        };
+      }
+    });
+  }
+
+  /**
+   * Fund a wallet with ETH (for local development/testing)
+   * @param address - The wallet address to fund
+   * @param amount - Amount of ETH to send (as string, e.g., "1.0")
+   */
+  async fundWallet(address: string, amount: string): Promise<TransactionResult> {
+    this.ensureInitialized();
+    
+    return this.queueTransaction(async () => {
+      try {
+        console.log(`💰 Funding wallet ${address} with ${amount} ETH...`);
+        
+        const tx = await this.signer!.sendTransaction({
+          to: address,
+          value: ethers.parseEther(amount)
+        });
+        
+        await tx.wait();
+        
+        console.log(`✅ Wallet funded. TX: ${tx.hash}`);
+        
+        return {
+          success: true,
+          txHash: tx.hash,
+        };
+      } catch (error: any) {
+        console.error('❌ Failed to fund wallet:', error.message);
+        return {
+          success: false,
+          txHash: '',
+          error: error.message || 'Failed to fund wallet',
+        };
+      }
+    });
   }
 
   /**
@@ -248,18 +333,24 @@ class BlockchainService {
    * Get proposal details by ID
    * @param proposalId - ID of the proposal
    */
-  async getProposal(proposalId: number): Promise<ProposalData> {
+  async getProposal(proposalId: number): Promise<ProposalData | null> {
     this.ensureInitialized();
-    const proposal = await this.contract!.getProposal(proposalId);
-    return {
-      id: proposal.id,
-      title: proposal.title,
-      startTime: proposal.startTime,
-      endTime: proposal.endTime,
-      yesVotes: proposal.yesVotes,
-      noVotes: proposal.noVotes,
-      exists: proposal.exists,
-    };
+    try {
+      const proposal = await this.contract!.getProposal(proposalId);
+      return {
+        id: proposal.id,
+        title: proposal.title,
+        startTime: proposal.startTime,
+        endTime: proposal.endTime,
+        yesVotes: proposal.yesVotes,
+        noVotes: proposal.noVotes,
+        exists: proposal.exists,
+      };
+    } catch (error: any) {
+      // Proposal doesn't exist on blockchain
+      console.log(`ℹ️ Proposal ${proposalId} not found on blockchain`);
+      return null;
+    }
   }
 
   /**
@@ -277,7 +368,13 @@ class BlockchainService {
    */
   async isVotingOpen(proposalId: number): Promise<boolean> {
     this.ensureInitialized();
-    return await this.contract!.isVotingOpen(proposalId);
+    try {
+      return await this.contract!.isVotingOpen(proposalId);
+    } catch (error: any) {
+      // Proposal may not exist on blockchain
+      console.log(`ℹ️ Could not check voting status for proposal ${proposalId}`);
+      return false;
+    }
   }
 
   // ============ Voting Functions ============
@@ -317,13 +414,84 @@ class BlockchainService {
   }
 
   /**
+   * Cast a vote on behalf of a shareholder (for testing/development)
+   * Uses account impersonation on Hardhat network
+   * @param shareholderAddress - Address of the shareholder voting
+   * @param proposalId - ID of the proposal to vote on
+   * @param support - true for yes, false for no
+   */
+  async voteAsShareHolder(
+    shareholderAddress: string,
+    proposalId: number,
+    support: boolean
+  ): Promise<TransactionResult> {
+    this.ensureInitialized();
+    
+    try {
+      console.log(`📝 Casting vote as ${shareholderAddress} on proposal ${proposalId}: ${support ? 'YES' : 'NO'}`);
+      
+      // For Hardhat local network, we can impersonate accounts
+      // Send some ETH to the shareholder account for gas
+      await this.provider!.send('hardhat_impersonateAccount', [shareholderAddress]);
+      
+      // Fund the account with ETH for gas
+      const fundTx = await this.signer!.sendTransaction({
+        to: shareholderAddress,
+        value: ethers.parseEther('1.0')
+      });
+      await fundTx.wait();
+      
+      // Create a signer for the shareholder
+      const shareholderSigner = await this.provider!.getSigner(shareholderAddress);
+      
+      // Connect contract with shareholder signer
+      const contractAsShareHolder = this.contract!.connect(shareholderSigner) as Contract;
+      
+      // Cast the vote
+      const tx: ContractTransactionResponse = await contractAsShareHolder.vote(proposalId, support);
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      // Stop impersonating
+      await this.provider!.send('hardhat_stopImpersonatingAccount', [shareholderAddress]);
+      
+      console.log(`✅ Vote cast successfully as ${shareholderAddress}. TX: ${tx.hash}`);
+      
+      return {
+        success: true,
+        txHash: tx.hash,
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to cast vote as shareholder:', error.message);
+      
+      // Try to stop impersonating in case of error
+      try {
+        await this.provider!.send('hardhat_stopImpersonatingAccount', [shareholderAddress]);
+      } catch {}
+      
+      return {
+        success: false,
+        txHash: '',
+        error: error.message || 'Failed to cast vote',
+      };
+    }
+  }
+
+  /**
    * Check if an address has voted on a proposal
    * @param proposalId - ID of the proposal
    * @param voterAddress - Address of the voter
    */
   async hasVotedOnProposal(proposalId: number, voterAddress: string): Promise<boolean> {
     this.ensureInitialized();
-    return await this.contract!.hasVotedOnProposal(proposalId, voterAddress);
+    try {
+      return await this.contract!.hasVotedOnProposal(proposalId, voterAddress);
+    } catch (error: any) {
+      // Proposal may not exist on blockchain
+      console.log(`ℹ️ Could not check vote status for proposal ${proposalId}`);
+      return false;
+    }
   }
 
   // ============ Result Functions ============
@@ -332,17 +500,23 @@ class BlockchainService {
    * Get the result of a proposal
    * @param proposalId - ID of the proposal
    */
-  async getProposalResult(proposalId: number): Promise<ProposalResult> {
+  async getProposalResult(proposalId: number): Promise<ProposalResult | null> {
     this.ensureInitialized();
     
-    const result = await this.contract!.getProposalResult(proposalId);
-    
-    return {
-      title: result[0],
-      yesVotes: result[1],
-      noVotes: result[2],
-      votingOpen: result[3],
-    };
+    try {
+      const result = await this.contract!.getProposalResult(proposalId);
+      
+      return {
+        title: result[0],
+        yesVotes: result[1],
+        noVotes: result[2],
+        votingOpen: result[3],
+      };
+    } catch (error: any) {
+      // Proposal doesn't exist on blockchain - this is normal after fresh-start
+      console.log(`ℹ️ Proposal ${proposalId} not found on blockchain (may need re-sync)`);
+      return null;
+    }
   }
 
   // ============ Utility Functions ============

@@ -6,6 +6,7 @@ import {
   updateShares,
   deactivateShareholder,
   getTotalShares,
+  fundShareholderWallet,
 } from '../controllers/shareholder.controller';
 import {
   authenticate,
@@ -63,5 +64,12 @@ router.put('/:walletAddress/shares', authenticate, requireShareholder, requireAd
  * Deactivate a shareholder (Admin only)
  */
 router.delete('/:walletAddress', authenticate, requireShareholder, requireAdmin, validateWalletAddressParam, deactivateShareholder);
+
+/**
+ * POST /shareholders/fund/:walletAddress
+ * Fund a shareholder wallet with ETH for gas fees (Admin only, for testing)
+ * Body: { amount?: string } (defaults to "10.0" ETH)
+ */
+router.post('/fund/:walletAddress', authenticate, requireShareholder, requireAdmin, validateWalletAddressParam, fundShareholderWallet);
 
 export default router;

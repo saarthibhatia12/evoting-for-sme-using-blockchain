@@ -188,6 +188,42 @@ class AuthService {
     });
     return !!shareholder;
   }
+
+  /**
+   * Get full shareholder details including shares and status
+   * @param walletAddress - The wallet address to lookup
+   * @returns Shareholder details or null if not found
+   */
+  async getShareholderDetails(walletAddress: string): Promise<{
+    id: number;
+    walletAddress: string;
+    name: string;
+    email: string;
+    isActive: boolean;
+    isAdmin: boolean;
+    shares: number;
+  } | null> {
+    const shareholder = await prisma.shareholder.findUnique({
+      where: { walletAddress: ethers.getAddress(walletAddress) },
+      include: {
+        shares: true,
+      },
+    });
+
+    if (!shareholder) {
+      return null;
+    }
+
+    return {
+      id: shareholder.id,
+      walletAddress: shareholder.walletAddress,
+      name: shareholder.name,
+      email: shareholder.email,
+      isActive: shareholder.isActive,
+      isAdmin: shareholder.isAdmin,
+      shares: shareholder.shares?.shares || 0,
+    };
+  }
 }
 
 export const authService = new AuthService();

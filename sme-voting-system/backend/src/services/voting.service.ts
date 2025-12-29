@@ -99,28 +99,24 @@ class VotingService {
       throw new Error('You have already voted on this proposal');
     }
 
-    // Check if already voted on blockchain
-    try {
-      const hasVoted = await blockchainService.hasVotedOnProposal(proposalId, normalizedAddress);
-      if (hasVoted) {
-        throw new Error('You have already voted on this proposal (blockchain)');
-      }
-    } catch (error: any) {
-      if (error.message.includes('already voted')) {
-        throw error;
-      }
-      // If blockchain check fails, we continue with the vote
-      console.warn(`⚠️ Could not verify vote status on blockchain: ${error.message}`);
-    }
-
-    // Cast vote on blockchain
-    // Note: In production, this should be done by the user's wallet
-    // For now, we use the admin wallet to record the vote
+    // Verify vote was cast on blockchain
+    // The frontend casts the vote using MetaMask FIRST, then calls this API
+    // We verify it exists on blockchain and record it in the database
     let blockchainTx: string | undefined;
     
-    // For a real implementation, the frontend would send a signed transaction
-    // Here we just record the vote in the database
-    // The actual blockchain vote would need to be initiated by the user's wallet
+    try {
+      // Verify the vote exists on blockchain (frontend should have already cast it)
+      const hasVotedOnChain = await blockchainService.hasVotedOnProposal(proposalId, normalizedAddress);
+      
+      if (hasVotedOnChain) {
+        console.log(`✅ Vote verified on blockchain for ${shareholder.name}`);
+      } else {
+        console.warn('⚠️  Vote not yet confirmed on blockchain, recording anyway (pending confirmation)');
+      }
+    } catch (error: any) {
+      console.warn(`⚠️ Could not verify vote on blockchain: ${error.message}`);
+      // Continue anyway - the vote may still be pending
+    }
 
     // Create vote record in database
     const vote = await prisma.vote.create({

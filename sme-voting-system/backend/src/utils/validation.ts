@@ -116,7 +116,8 @@ export const validateVotingTimeRange = (
 
   const now = Math.floor(Date.now() / 1000);
 
-  // Allow 5 minutes grace period for start time
+  // Allow start time from current time (no past restriction for testing)
+  // Allow up to 5 minutes in the past for clock sync issues
   if (startTs < now - 300) {
     return { isValid: false, error: 'Start time cannot be more than 5 minutes in the past' };
   }
@@ -125,9 +126,9 @@ export const validateVotingTimeRange = (
     return { isValid: false, error: 'End time must be after start time' };
   }
 
-  // Minimum voting duration: 1 hour
-  if (endTs - startTs < 3600) {
-    return { isValid: false, error: 'Voting period must be at least 1 hour' };
+  // Minimum voting duration: 4 minutes (for testing purposes)
+  if (endTs - startTs < 240) {
+    return { isValid: false, error: 'Voting period must be at least 4 minutes' };
   }
 
   // Maximum voting duration: 30 days

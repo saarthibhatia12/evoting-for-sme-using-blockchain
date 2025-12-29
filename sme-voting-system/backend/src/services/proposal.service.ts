@@ -55,9 +55,19 @@ class ProposalService {
       throw new Error(blockchainResult.error || 'Failed to create proposal on blockchain');
     }
 
-    // Create proposal in database
-    const proposal = await prisma.proposal.create({
-      data: {
+    // Create or update proposal in database (upsert handles blockchain reset scenarios)
+    const proposal = await prisma.proposal.upsert({
+      where: {
+        proposalId: blockchainResult.proposalId,
+      },
+      update: {
+        title,
+        description,
+        startTime: new Date(startTimestamp * 1000),
+        endTime: new Date(endTimestamp * 1000),
+        isActive: true,
+      },
+      create: {
         proposalId: blockchainResult.proposalId,
         title,
         description,
@@ -125,6 +135,15 @@ class ProposalService {
 
     try {
       const blockchainData = await blockchainService.getProposal(proposalId);
+      
+      // Handle case where proposal doesn't exist on blockchain
+      if (!blockchainData) {
+        return {
+          proposal,
+          blockchainData: null,
+        };
+      }
+      
       const isVotingOpen = await blockchainService.isVotingOpen(proposalId);
 
       return {
@@ -210,6 +229,24 @@ class ProposalService {
     }
 
     const result = await blockchainService.getProposalResult(proposalId);
+    
+    // Handle case where proposal doesn't exist on blockchain
+    if (!result) {
+      // Return with zero votes if blockchain data not available
+      return {
+        proposalId: proposal.proposalId,
+        title: proposal.title,
+        description: proposal.description,
+        yesVotes: '0',
+        noVotes: '0',
+        totalVotes: '0',
+        yesPercentage: 0,
+        noPercentage: 0,
+        votingOpen: false,
+        startTime: proposal.startTime,
+        endTime: proposal.endTime,
+      };
+    }
     
     const yesVotes = result.yesVotes;
     const noVotes = result.noVotes;

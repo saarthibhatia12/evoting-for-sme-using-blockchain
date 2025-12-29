@@ -45,18 +45,93 @@ class ShareholderService {
     // Check if shareholder already exists
     const existing = await prisma.shareholder.findUnique({
       where: { walletAddress: normalizedAddress },
+      include: { shares: true },
     });
 
+    // If shareholder exists and is inactive, reactivate them
     if (existing) {
-      throw new Error('Shareholder with this wallet address already exists');
+      if (!existing.isActive) {
+        console.log(`♻️  Reactivating inactive shareholder: ${normalizedAddress}`);
+        
+        // Update shareholder information and reactivate
+        const shareholder = await prisma.$transaction(async (tx) => {
+          // Update shareholder record
+          const updatedShareholder = await tx.shareholder.update({
+            where: { walletAddress: normalizedAddress },
+            data: {
+              name,
+              email,
+              isAdmin,
+              isActive: true,
+            },
+          });
+
+          // Update or create shares record
+          if (existing.shares) {
+            await tx.share.update({
+              where: { id: existing.shares.id },
+              data: { shares },
+            });
+          } else {
+            await tx.share.create({
+              data: {
+                shareholderId: updatedShareholder.id,
+                shares,
+              },
+            });
+          }
+
+          return updatedShareholder;
+        });
+
+        // Add shareholder back to blockchain with new shares
+        let blockchainTx: string | undefined;
+        try {
+          // Fund wallet first (for non-admin users on local network)
+          if (!isAdmin) {
+            try {
+              await blockchainService.fundWallet(normalizedAddress, '10');
+              console.log(`💰 Funded ${normalizedAddress} with 10 ETH for gas fees`);
+            } catch (fundError: any) {
+              console.warn(`⚠️ Could not fund wallet: ${fundError.message}`);
+            }
+          }
+          
+          const result = await blockchainService.addShareholder(normalizedAddress, shares);
+          if (result.success) {
+            blockchainTx = result.txHash;
+            console.log(`✅ Shareholder re-added to blockchain: ${normalizedAddress}, TX: ${result.txHash}`);
+          } else {
+            console.error(`⚠️ Failed to add shareholder to blockchain: ${result.error}`);
+          }
+        } catch (error: any) {
+          console.error(`⚠️ Failed to add shareholder to blockchain: ${error.message}`);
+        }
+
+        // Fetch shareholder with shares
+        const shareholderWithShares = await prisma.shareholder.findUnique({
+          where: { id: shareholder.id },
+          include: { shares: true },
+        });
+
+        console.log(`✅ Shareholder reactivated: ${name} (${normalizedAddress})`);
+
+        return {
+          shareholder: shareholderWithShares,
+          blockchainTx,
+        };
+      } else {
+        // Shareholder exists and is active
+        throw new Error('Shareholder with this wallet address already exists');
+      }
     }
 
-    // Check if email already exists
+    // Check if email already exists (for active shareholders only)
     const existingEmail = await prisma.shareholder.findUnique({
       where: { email },
     });
 
-    if (existingEmail) {
+    if (existingEmail && existingEmail.isActive) {
       throw new Error('Shareholder with this email already exists');
     }
 
@@ -92,6 +167,17 @@ class ShareholderService {
     // Add shareholder to blockchain
     let blockchainTx: string | undefined;
     try {
+      // Fund wallet first (for non-admin users on local network)
+      if (!isAdmin) {
+        try {
+          await blockchainService.fundWallet(normalizedAddress, '10');
+          console.log(`💰 Funded ${normalizedAddress} with 10 ETH for gas fees`);
+        } catch (fundError: any) {
+          console.warn(`⚠️ Could not fund wallet: ${fundError.message}`);
+        }
+      }
+      
+      // Then add shareholder to blockchain
       const result = await blockchainService.addShareholder(normalizedAddress, shares);
       if (result.success) {
         blockchainTx = result.txHash;
@@ -255,6 +341,28 @@ class ShareholderService {
     });
 
     return result._sum?.shares || 0;
+  }
+
+  /**
+   * Fund a shareholder wallet with ETH for gas fees
+   * @param walletAddress - The shareholder's wallet address
+   * @param amount - Amount of ETH to send (as string, e.g., "10.0")
+   * @returns Transaction result
+   */
+  async fundShareholderWallet(walletAddress: string, amount: string): Promise<{
+    success: boolean;
+    txHash: string;
+  }> {
+    const result = await blockchainService.fundWallet(walletAddress, amount);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fund wallet');
+    }
+
+    return {
+      success: true,
+      txHash: result.txHash,
+    };
   }
 }
 

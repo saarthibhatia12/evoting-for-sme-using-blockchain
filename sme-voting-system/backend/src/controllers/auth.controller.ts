@@ -108,15 +108,33 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Check if user is a registered shareholder
-    const isShareholder = await authService.isRegisteredShareholder(decoded.walletAddress);
+    // Get full shareholder details
+    const shareholderData = await authService.getShareholderDetails(decoded.walletAddress);
+
+    if (!shareholderData) {
+      res.status(403).json({
+        success: false,
+        error: 'User is not a registered shareholder',
+      });
+      return;
+    }
 
     res.json({
       success: true,
       data: {
         walletAddress: decoded.walletAddress,
-        isShareholder,
-        issuedAt: new Date(decoded.iat * 1000).toISOString(),
+        isRegistered: true,
+        shareholder: {
+          id: shareholderData.id,
+          walletAddress: shareholderData.walletAddress,
+          name: shareholderData.name,
+          email: shareholderData.email,
+          isActive: shareholderData.isActive,
+          isAdmin: shareholderData.isAdmin,
+          shares: {
+            shares: shareholderData.shares,
+          },
+        },
       },
     });
   } catch (error: any) {

@@ -5,6 +5,7 @@ import routes from './routes';
 import { config } from './config';
 import { databaseService } from './services/database.service';
 import { blockchainService } from './services/blockchain.service';
+import { startupService } from './services/startup.service';
 import { logger } from './services/logger.service';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestLogger, securityHeaders, rateLimiter } from './middleware/security.middleware';
@@ -17,8 +18,12 @@ const app: Express = express();
 // Security Middleware
 app.use(securityHeaders);
 
-// Rate Limiting (100 requests per 15 minutes per IP)
-app.use(rateLimiter({ windowMs: 15 * 60 * 1000, maxRequests: 100 }));
+// Rate Limiting - More permissive in development
+const rateLimitConfig = config.nodeEnv === 'production'
+  ? { windowMs: 15 * 60 * 1000, maxRequests: 100 } // 100 requests per 15 min in prod
+  : { windowMs: 1 * 60 * 1000, maxRequests: 1000 }; // 1000 requests per minute in dev
+
+app.use(rateLimiter(rateLimitConfig));
 
 // Request Logging
 app.use(requestLogger);
@@ -61,10 +66,21 @@ const startServer = async () => {
     await databaseService.connect();
 
     // Initialize blockchain connection
+    let blockchainConnected = false;
     try {
       await blockchainService.initialize();
+      blockchainConnected = true;
     } catch (error) {
       console.warn('⚠️  Blockchain connection failed. Some features may be unavailable.');
+    }
+
+    // Auto-sync shareholders to blockchain on startup
+    if (blockchainConnected) {
+      try {
+        await startupService.syncShareholdersToBlockchain();
+      } catch (error) {
+        console.warn('⚠️  Auto-sync failed. Run "npm run db:sync-blockchain" manually if needed.');
+      }
     }
 
     // Start Express server
