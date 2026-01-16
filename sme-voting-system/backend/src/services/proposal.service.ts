@@ -13,13 +13,17 @@ class ProposalService {
    * @param description - Proposal description
    * @param startTime - Voting start time (Date or Unix timestamp)
    * @param endTime - Voting end time (Date or Unix timestamp)
+   * @param votingType - Type of voting: 'simple' (default) or 'quadratic'
+   * @param baseTokens - Base token pool for quadratic voting (default: 100)
    * @returns The created proposal
    */
   async createProposal(
     title: string,
     description: string | undefined,
     startTime: Date | number,
-    endTime: Date | number
+    endTime: Date | number,
+    votingType: 'simple' | 'quadratic' = 'simple',  // NEW: Default to 'simple' for backward compatibility
+    baseTokens: number = 100                         // NEW: Default to 100 for quadratic voting
   ): Promise<{
     proposal: Proposal;
     blockchainTx?: string;
@@ -44,12 +48,25 @@ class ProposalService {
       throw new Error('End time must be after start time');
     }
 
-    // Create proposal on blockchain first
-    const blockchainResult = await blockchainService.createProposal(
-      title,
-      startTimestamp,
-      endTimestamp
-    );
+    // Create proposal on the appropriate blockchain contract based on voting type
+    let blockchainResult;
+    
+    if (votingType === 'quadratic') {
+      // Create on QuadraticVoting contract
+      blockchainResult = await blockchainService.createQuadraticProposal(
+        title,
+        startTimestamp,
+        endTimestamp,
+        baseTokens
+      );
+    } else {
+      // Create on simple Voting contract (default)
+      blockchainResult = await blockchainService.createProposal(
+        title,
+        startTimestamp,
+        endTimestamp
+      );
+    }
 
     if (!blockchainResult.success || !blockchainResult.proposalId) {
       throw new Error(blockchainResult.error || 'Failed to create proposal on blockchain');
@@ -66,6 +83,8 @@ class ProposalService {
         startTime: new Date(startTimestamp * 1000),
         endTime: new Date(endTimestamp * 1000),
         isActive: true,
+        votingType,   // NEW: Include voting type (defaults to 'simple')
+        baseTokens,   // NEW: Include base tokens (defaults to 100)
       },
       create: {
         proposalId: blockchainResult.proposalId,
@@ -74,10 +93,12 @@ class ProposalService {
         startTime: new Date(startTimestamp * 1000),
         endTime: new Date(endTimestamp * 1000),
         isActive: true,
+        votingType,   // NEW: Include voting type (defaults to 'simple')
+        baseTokens,   // NEW: Include base tokens (defaults to 100)
       },
     });
 
-    console.log(`✅ Proposal created: ID=${proposal.proposalId}, Title="${title}"`);
+    console.log(`✅ Proposal created: ID=${proposal.proposalId}, Title="${title}", VotingType=${votingType}`);
 
     return {
       proposal,
@@ -115,7 +136,7 @@ class ProposalService {
   }
 
   /**
-   * Get proposal with blockchain data
+   * Get proposal with blockchain data (falls back to database if unavailable)
    * @param proposalId - The blockchain proposal ID
    * @returns Combined proposal data
    */
@@ -133,32 +154,52 @@ class ProposalService {
       return { proposal: null, blockchainData: null };
     }
 
+    // Check if voting is still open based on time
+    const now = new Date();
+    const isVotingPeriodActive = now >= proposal.startTime && now <= proposal.endTime && proposal.isActive;
+
     try {
       const blockchainData = await blockchainService.getProposal(proposalId);
       
-      // Handle case where proposal doesn't exist on blockchain
-      if (!blockchainData) {
+      // If blockchain has data with votes, use it
+      if (blockchainData && (blockchainData.yesVotes > 0n || blockchainData.noVotes > 0n)) {
+        const isVotingOpen = await blockchainService.isVotingOpen(proposalId);
+        
         return {
           proposal,
-          blockchainData: null,
+          blockchainData: {
+            yesVotes: blockchainData.yesVotes.toString(),
+            noVotes: blockchainData.noVotes.toString(),
+            votingOpen: isVotingOpen,
+          },
         };
       }
       
-      const isVotingOpen = await blockchainService.isVotingOpen(proposalId);
-
+      // Blockchain empty or unavailable - fall back to database
+      console.log(`📊 Using database results for proposal ${proposalId} (blockchain data unavailable)`);
+      const dbResults = await this.calculateResultsFromDatabase(proposalId);
+      
       return {
         proposal,
         blockchainData: {
-          yesVotes: blockchainData.yesVotes.toString(),
-          noVotes: blockchainData.noVotes.toString(),
-          votingOpen: isVotingOpen,
+          yesVotes: dbResults.yesVotes.toString(),
+          noVotes: dbResults.noVotes.toString(),
+          votingOpen: isVotingPeriodActive,
         },
       };
     } catch (error: any) {
       console.error(`⚠️ Failed to fetch blockchain data for proposal ${proposalId}:`, error.message);
+      
+      // Fall back to database on error
+      const dbResults = await this.calculateResultsFromDatabase(proposalId);
+      
       return {
         proposal,
-        blockchainData: null,
+        blockchainData: {
+          yesVotes: dbResults.yesVotes.toString(),
+          noVotes: dbResults.noVotes.toString(),
+          votingOpen: isVotingPeriodActive,
+        },
       };
     }
   }
@@ -205,7 +246,43 @@ class ProposalService {
   }
 
   /**
-   * Get proposal result from blockchain
+   * Calculate results from database votes (weighted by shares)
+   * This is the source of truth when blockchain data is unavailable
+   */
+  private async calculateResultsFromDatabase(proposalId: number): Promise<{
+    yesVotes: bigint;
+    noVotes: bigint;
+  }> {
+    // Get all votes for this proposal with shareholder shares
+    const votes = await prisma.vote.findMany({
+      where: { proposalId },
+      include: {
+        shareholder: {
+          include: {
+            shares: true,
+          },
+        },
+      },
+    });
+
+    let yesVotes = 0n;
+    let noVotes = 0n;
+
+    for (const vote of votes) {
+      const shareWeight = BigInt(vote.shareholder.shares?.shares || 0);
+      
+      if (vote.voteChoice) {
+        yesVotes += shareWeight;
+      } else {
+        noVotes += shareWeight;
+      }
+    }
+
+    return { yesVotes, noVotes };
+  }
+
+  /**
+   * Get proposal result - tries blockchain first, falls back to database
    * @param proposalId - The blockchain proposal ID
    * @returns Voting results
    */
@@ -228,28 +305,31 @@ class ProposalService {
       throw new Error('Proposal not found');
     }
 
-    const result = await blockchainService.getProposalResult(proposalId);
+    // Check if voting is still open based on time
+    const now = new Date();
+    const isVotingPeriodActive = now >= proposal.startTime && now <= proposal.endTime;
+
+    let yesVotes: bigint;
+    let noVotes: bigint;
+    let votingOpen = false;
+
+    // Try to get results from blockchain first
+    const blockchainResult = await blockchainService.getProposalResult(proposalId);
     
-    // Handle case where proposal doesn't exist on blockchain
-    if (!result) {
-      // Return with zero votes if blockchain data not available
-      return {
-        proposalId: proposal.proposalId,
-        title: proposal.title,
-        description: proposal.description,
-        yesVotes: '0',
-        noVotes: '0',
-        totalVotes: '0',
-        yesPercentage: 0,
-        noPercentage: 0,
-        votingOpen: false,
-        startTime: proposal.startTime,
-        endTime: proposal.endTime,
-      };
+    if (blockchainResult && (blockchainResult.yesVotes > 0n || blockchainResult.noVotes > 0n)) {
+      // Blockchain has data, use it
+      yesVotes = blockchainResult.yesVotes;
+      noVotes = blockchainResult.noVotes;
+      votingOpen = blockchainResult.votingOpen;
+    } else {
+      // Blockchain data unavailable or empty - calculate from database
+      console.log(`📊 Calculating results from database for proposal ${proposalId} (blockchain data unavailable)`);
+      const dbResults = await this.calculateResultsFromDatabase(proposalId);
+      yesVotes = dbResults.yesVotes;
+      noVotes = dbResults.noVotes;
+      votingOpen = isVotingPeriodActive && proposal.isActive;
     }
-    
-    const yesVotes = result.yesVotes;
-    const noVotes = result.noVotes;
+
     const totalVotes = yesVotes + noVotes;
 
     const yesPercentage = totalVotes > 0n 
@@ -268,7 +348,7 @@ class ProposalService {
       totalVotes: totalVotes.toString(),
       yesPercentage,
       noPercentage,
-      votingOpen: result.votingOpen,
+      votingOpen,
       startTime: proposal.startTime,
       endTime: proposal.endTime,
     };

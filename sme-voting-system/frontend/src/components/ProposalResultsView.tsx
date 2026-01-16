@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { proposalService, votingService } from '../services';
 import { Proposal, ProposalResult } from '../services/proposalService';
-import { Vote } from '../services/votingService';
+import { Vote, QuadraticResults } from '../services/votingService';
 
 interface ProposalResultsViewProps {
   proposalId?: number;
@@ -11,6 +11,7 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [results, setResults] = useState<ProposalResult | null>(null);
+  const [quadraticResults, setQuadraticResults] = useState<QuadraticResults | null>(null);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
@@ -47,8 +48,22 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
     try {
       setLoadingResults(true);
       setError(null);
+      setQuadraticResults(null); // Reset quadratic results
 
-      // Fetch results
+      // Check if this is a quadratic voting proposal
+      if (proposal.votingType === 'quadratic') {
+        // Fetch quadratic-specific results
+        try {
+          const quadraticResponse = await votingService.getQuadraticResults(proposal.proposalId);
+          if (quadraticResponse.success) {
+            setQuadraticResults(quadraticResponse.data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch quadratic results:', err);
+        }
+      }
+
+      // Also fetch standard results (for fallback/additional info)
       const resultsResponse = await proposalService.getProposalResults(proposal.proposalId);
       if (resultsResponse.success) {
         setResults(resultsResponse.data);
@@ -148,6 +163,9 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
               >
                 <div className="proposal-item-header">
                   <span className="proposal-id">#{proposal.proposalId}</span>
+                  {proposal.votingType === 'quadratic' && (
+                    <span className="badge badge-quadratic">📊 Quadratic</span>
+                  )}
                   {getStatusBadge(proposal.status)}
                 </div>
                 <h4>{proposal.title}</h4>
@@ -188,63 +206,151 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
                   <span className="meta-label">Voting</span>
                   <span className="meta-value">{selectedProposal.votingOpen ? '🟢 Open' : '🔴 Closed'}</span>
                 </div>
+                <div className="meta-item">
+                  <span className="meta-label">Type</span>
+                  <span className="meta-value">
+                    {selectedProposal.votingType === 'quadratic' ? '📊 Quadratic' : '🗳️ Simple'}
+                  </span>
+                </div>
               </div>
 
-              {/* Vote Stats */}
+              {/* Vote Stats - Different display for quadratic vs simple voting */}
               <div className="vote-stats card">
-                <h3>📊 Voting Results</h3>
+                <h3>
+                  {selectedProposal.votingType === 'quadratic' 
+                    ? '📊 Quadratic Voting Results' 
+                    : '📊 Voting Results'}
+                </h3>
                 
-                <div className="stats-grid">
-                  <div className="stat-card yes">
-                    <span className="stat-icon">👍</span>
-                    <span className="stat-value">{parseInt(results.yesVotes).toLocaleString()}</span>
-                    <span className="stat-label">Yes Votes</span>
-                    <span className="stat-percent">{results.yesPercentage.toFixed(1)}%</span>
-                  </div>
-                  <div className="stat-card no">
-                    <span className="stat-icon">👎</span>
-                    <span className="stat-value">{parseInt(results.noVotes).toLocaleString()}</span>
-                    <span className="stat-label">No Votes</span>
-                    <span className="stat-percent">{results.noPercentage.toFixed(1)}%</span>
-                  </div>
-                  <div className="stat-card total">
-                    <span className="stat-icon">🗳️</span>
-                    <span className="stat-value">{parseInt(results.totalVotes).toLocaleString()}</span>
-                    <span className="stat-label">Total Votes</span>
-                  </div>
-                </div>
-
-                {/* Progress Bars */}
-                <div className="progress-section">
-                  <div className="progress-bar-container">
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill yes" 
-                        style={{ width: `${results.yesPercentage}%` }}
-                      ></div>
-                      <div 
-                        className="progress-fill no" 
-                        style={{ width: `${results.noPercentage}%` }}
-                      ></div>
+                {/* QUADRATIC VOTING RESULTS */}
+                {selectedProposal.votingType === 'quadratic' && quadraticResults ? (
+                  <>
+                    <div className="quadratic-info-banner">
+                      <span className="info-icon">ℹ️</span>
+                      <span>Quadratic voting: Voting power = √(tokens spent). This reduces the influence of large stakeholders.</span>
                     </div>
-                    <div className="progress-labels">
-                      <span className="yes-label">Yes {results.yesPercentage.toFixed(1)}%</span>
-                      <span className="no-label">No {results.noPercentage.toFixed(1)}%</span>
+                    
+                    <div className="stats-grid">
+                      <div className="stat-card yes">
+                        <span className="stat-icon">👍</span>
+                        <span className="stat-value">{quadraticResults.yesVotingPower.toFixed(2)}</span>
+                        <span className="stat-label">Yes Voting Power</span>
+                        <span className="stat-percent">{quadraticResults.yesPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="stat-card no">
+                        <span className="stat-icon">👎</span>
+                        <span className="stat-value">{quadraticResults.noVotingPower.toFixed(2)}</span>
+                        <span className="stat-label">No Voting Power</span>
+                        <span className="stat-percent">{quadraticResults.noPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="stat-card total">
+                        <span className="stat-icon">⚡</span>
+                        <span className="stat-value">{quadraticResults.totalVotingPower.toFixed(2)}</span>
+                        <span className="stat-label">Total Voting Power</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Winner indicator */}
-                {selectedProposal.status === 'ended' && (
-                  <div className={`winner-banner ${results.yesPercentage > results.noPercentage ? 'passed' : 'rejected'}`}>
-                    {results.yesPercentage > results.noPercentage ? (
-                      <>✅ Proposal PASSED with {results.yesPercentage.toFixed(1)}% approval</>
-                    ) : results.yesPercentage === results.noPercentage ? (
-                      <>⚖️ Voting ended in a TIE</>
-                    ) : (
-                      <>❌ Proposal REJECTED with {results.noPercentage.toFixed(1)}% against</>
+                    {/* Token Stats */}
+                    <div className="token-stats">
+                      <div className="token-stat">
+                        <span className="token-label">🎟️ Total Tokens Spent:</span>
+                        <span className="token-value">{quadraticResults.totalTokensSpent}</span>
+                      </div>
+                      <div className="token-stat">
+                        <span className="token-label">👥 Total Voters:</span>
+                        <span className="token-value">{quadraticResults.voterCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bars */}
+                    <div className="progress-section">
+                      <div className="progress-bar-container">
+                        <div className="progress-bar">
+                          <div 
+                            className="progress-fill yes" 
+                            style={{ width: `${quadraticResults.yesPercentage}%` }}
+                          ></div>
+                          <div 
+                            className="progress-fill no" 
+                            style={{ width: `${quadraticResults.noPercentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="progress-labels">
+                          <span className="yes-label">Yes {quadraticResults.yesPercentage.toFixed(1)}%</span>
+                          <span className="no-label">No {quadraticResults.noPercentage.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Winner indicator */}
+                    {selectedProposal.status === 'ended' && (
+                      <div className={`winner-banner ${quadraticResults.yesPercentage > quadraticResults.noPercentage ? 'passed' : 'rejected'}`}>
+                        {quadraticResults.yesPercentage > quadraticResults.noPercentage ? (
+                          <>✅ Proposal PASSED with {quadraticResults.yesPercentage.toFixed(1)}% approval</>
+                        ) : quadraticResults.yesPercentage === quadraticResults.noPercentage ? (
+                          <>⚖️ Voting ended in a TIE</>
+                        ) : (
+                          <>❌ Proposal REJECTED with {quadraticResults.noPercentage.toFixed(1)}% against</>
+                        )}
+                      </div>
                     )}
-                  </div>
+                  </>
+                ) : (
+                  /* SIMPLE VOTING RESULTS */
+                  <>
+                    <div className="stats-grid">
+                      <div className="stat-card yes">
+                        <span className="stat-icon">👍</span>
+                        <span className="stat-value">{parseInt(results.yesVotes).toLocaleString()}</span>
+                        <span className="stat-label">Yes Votes</span>
+                        <span className="stat-percent">{results.yesPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="stat-card no">
+                        <span className="stat-icon">👎</span>
+                        <span className="stat-value">{parseInt(results.noVotes).toLocaleString()}</span>
+                        <span className="stat-label">No Votes</span>
+                        <span className="stat-percent">{results.noPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="stat-card total">
+                        <span className="stat-icon">🗳️</span>
+                        <span className="stat-value">{parseInt(results.totalVotes).toLocaleString()}</span>
+                        <span className="stat-label">Total Votes</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bars */}
+                    <div className="progress-section">
+                      <div className="progress-bar-container">
+                        <div className="progress-bar">
+                          <div 
+                            className="progress-fill yes" 
+                            style={{ width: `${results.yesPercentage}%` }}
+                          ></div>
+                          <div 
+                            className="progress-fill no" 
+                            style={{ width: `${results.noPercentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="progress-labels">
+                          <span className="yes-label">Yes {results.yesPercentage.toFixed(1)}%</span>
+                          <span className="no-label">No {results.noPercentage.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Winner indicator */}
+                    {selectedProposal.status === 'ended' && (
+                      <div className={`winner-banner ${results.yesPercentage > results.noPercentage ? 'passed' : 'rejected'}`}>
+                        {results.yesPercentage > results.noPercentage ? (
+                          <>✅ Proposal PASSED with {results.yesPercentage.toFixed(1)}% approval</>
+                        ) : results.yesPercentage === results.noPercentage ? (
+                          <>⚖️ Voting ended in a TIE</>
+                        ) : (
+                          <>❌ Proposal REJECTED with {results.noPercentage.toFixed(1)}% against</>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

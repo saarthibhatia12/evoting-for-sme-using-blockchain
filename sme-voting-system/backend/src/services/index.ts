@@ -4,3 +4,4 @@
 export { databaseService, prisma } from './database.service';
 export { blockchainService } from './blockchain.service';
 export { startupService } from './startup.service';
+export { quadraticVotingService } from './quadratic-voting.service';

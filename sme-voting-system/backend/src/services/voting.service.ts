@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from './database.service';
 import { blockchainService } from './blockchain.service';
+import { quadraticVotingService } from './quadratic-voting.service';
 import { Vote } from '@prisma/client';
 
 /**
@@ -25,19 +26,61 @@ export interface VoteWithRelations extends Vote {
 class VotingService {
   /**
    * Cast a vote on a proposal
+   * Routes to appropriate voting logic based on proposal's votingType
+   * 
    * @param walletAddress - Voter's wallet address
    * @param proposalId - The proposal ID to vote on
    * @param voteChoice - true for yes, false for no
-   * @returns The vote record
+   * @param voteCount - Number of votes to cast (only used for quadratic voting, default: 1)
+   * @returns The vote record with optional token info for quadratic voting
    */
   async castVote(
     walletAddress: string,
     proposalId: number,
-    voteChoice: boolean
+    voteChoice: boolean,
+    voteCount: number = 1  // NEW: Optional parameter with default 1 for backward compatibility
   ): Promise<{
     vote: Vote;
     blockchainTx?: string;
+    tokensSpent?: number;        // NEW: Only for quadratic voting
+    remainingTokens?: number;    // NEW: Only for quadratic voting
+    votingPower?: number;        // NEW: Only for quadratic voting
   }> {
+    // ============================================================
+    // ROUTING LOGIC: Check voting type and route accordingly
+    // ============================================================
+    
+    // First, fetch the proposal to determine voting type
+    const proposal = await prisma.proposal.findUnique({
+      where: { proposalId },
+    });
+
+    if (!proposal) {
+      throw new Error('Proposal not found');
+    }
+
+    // QUADRATIC VOTING PATH - Route to separate service
+    if (proposal.votingType === 'quadratic') {
+      const result = await quadraticVotingService.castQuadraticVote(
+        walletAddress,
+        proposalId,
+        voteChoice,
+        voteCount
+      );
+      
+      return {
+        vote: result.vote,
+        blockchainTx: result.blockchainTx,
+        tokensSpent: result.tokensSpent,
+        remainingTokens: result.remainingTokens,
+        votingPower: result.votingPower,
+      };
+    }
+
+    // ============================================================
+    // SIMPLE VOTING PATH - EXISTING CODE UNCHANGED BELOW
+    // ============================================================
+    
     // Validate wallet address
     if (!ethers.isAddress(walletAddress)) {
       throw new Error('Invalid wallet address');
@@ -63,14 +106,7 @@ class VotingService {
       throw new Error('You must have shares to vote');
     }
 
-    // Check if proposal exists
-    const proposal = await prisma.proposal.findUnique({
-      where: { proposalId },
-    });
-
-    if (!proposal) {
-      throw new Error('Proposal not found');
-    }
+    // NOTE: proposal already fetched above in routing logic
 
     if (!proposal.isActive) {
       throw new Error('Proposal is not active');

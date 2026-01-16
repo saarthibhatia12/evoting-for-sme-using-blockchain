@@ -4,6 +4,7 @@ REM Quick Restart Script for SME Voting System (Windows)
 REM =============================================================================
 REM
 REM This script automates the fresh start process when you restart Hardhat.
+REM Deploys BOTH Voting and QuadraticVoting contracts.
 REM 
 REM Usage:
 REM   1. Close all running terminals (Hardhat, backend, frontend)
@@ -15,6 +16,7 @@ REM ============================================================================
 echo.
 echo ========================================
 echo   SME Voting System - Fresh Restart
+echo   (Simple + Quadratic Voting)
 echo ========================================
 echo.
 
@@ -37,11 +39,11 @@ echo Waiting for Hardhat to start (15 seconds)...
 timeout /t 15 /nobreak
 echo.
 
-REM Step 3: Deploy contract
-echo [3/6] Deploying contract...
+REM Step 3: Deploy BOTH contracts
+echo [3/6] Deploying contracts (Voting + QuadraticVoting)...
 npx hardhat run scripts/deploy.js --network localhost
 if errorlevel 1 (
-    echo ERROR: Failed to deploy contract
+    echo ERROR: Failed to deploy contracts
     echo Make sure Hardhat node is running
     pause
     exit /b 1
@@ -72,6 +74,16 @@ echo   - Hardhat Node:    http://127.0.0.1:8545
 echo   - Backend Server:  http://localhost:3001
 echo   - Frontend:        http://localhost:5173
 echo ========================================
+echo.
+echo   Contracts Deployed:
+echo   - Voting (Simple)       [Check console output above]
+echo   - QuadraticVoting       [Check console output above]
+echo ========================================
+echo.
+echo IMPORTANT: Copy the contract addresses from the deployment
+echo output above and add them to backend/.env file:
+echo   CONTRACT_ADDRESS=...
+echo   QUADRATIC_CONTRACT_ADDRESS=...
 echo.
 echo Open your browser to: http://localhost:5173
 echo.

@@ -3,17 +3,22 @@ import { Link } from 'react-router-dom'
 function Home() {
   return (
     <div className="home">
-      <h1>🗳️ SME Voting System</h1>
-      <p className="description">
-        Blockchain-Based Secure Shareholder Voting
-      </p>
+      <div className="hero-section">
+        <div className="icon-badge">🗳️</div>
+        <h1>
+          <span className="brand-text">SME Voting System</span>
+        </h1>
+        <p className="description">
+          Blockchain-Based Secure Shareholder Voting
+        </p>
+      </div>
 
       <div className="cards">
         <Link to="/admin" className="card">
           <h2>👔 Admin Dashboard</h2>
           <p>Manage proposals and shareholders</p>
         </Link>
-        
+
         <Link to="/shareholder" className="card">
           <h2>👥 Shareholder Dashboard</h2>
           <p>View proposals and cast votes</p>
@@ -21,120 +26,248 @@ function Home() {
       </div>
 
       <div className="features">
-        <h2>Features</h2>
+        <h2>Platform Features</h2>
         <ul>
-          <li>✅ Weighted voting based on shares</li>
-          <li>✅ Secure wallet authentication</li>
-          <li>✅ Transparent voting records</li>
-          <li>✅ Admin proposal management</li>
+          <li>
+            <span className="feature-icon">🔐</span>
+            <div className="feature-content">
+              <strong>Secure Wallet Authentication</strong>
+              <span className="feature-desc">MetaMask integration for secure blockchain access</span>
+            </div>
+          </li>
+          <li>
+            <span className="feature-icon">⚖️</span>
+            <div className="feature-content">
+              <strong>Share-Weighted Voting</strong>
+              <span className="feature-desc">Votes weighted by shareholder ownership</span>
+            </div>
+          </li>
+          <li>
+            <span className="feature-icon">📊</span>
+            <div className="feature-content">
+              <strong>Quadratic Voting</strong>
+              <span className="feature-desc">Fair voting with diminishing returns to prevent dominance</span>
+            </div>
+          </li>
+          <li>
+            <span className="feature-icon">🔍</span>
+            <div className="feature-content">
+              <strong>Transparent Records</strong>
+              <span className="feature-desc">Immutable blockchain-backed voting history</span>
+            </div>
+          </li>
+          <li>
+            <span className="feature-icon">⏰</span>
+            <div className="feature-content">
+              <strong>Timed Proposals</strong>
+              <span className="feature-desc">Automated voting periods with start/end times</span>
+            </div>
+          </li>
+          <li>
+            <span className="feature-icon">📈</span>
+            <div className="feature-content">
+              <strong>Real-Time Results</strong>
+              <span className="feature-desc">Live voting results and analytics dashboard</span>
+            </div>
+          </li>
         </ul>
       </div>
 
       <style>{`
-        .home {
-          padding: 3rem 2rem;
-          text-align: center;
-          max-width: 900px;
-          margin: 0 auto;
+        :root {
+          --primary: #4F46E5;
+          --primary-dark: #4338ca;
+          --bg-color: #f8fafc;
+          --card-bg: #ffffff;
+          --text-main: #0f172a;
+          --text-muted: #64748b;
+          --border-color: #e2e8f0;
         }
+
+        .home {
+          padding: 4rem 2rem;
+          text-align: center;
+          max-width: 1200px;
+          margin: 0 auto;
+          min-height: calc(100vh - 80px);
+          display: flex;
+          flex-direction: column;
+          /* justify-content: center; Remove vertical centering for better scroll flow */
+          background-color: var(--bg-color);
+          color: var(--text-main);
+        }
+
+        .hero-section {
+          margin-bottom: 5rem;
+          padding-top: 2rem;
+        }
+
+        .icon-badge {
+          font-size: 4.5rem;
+          margin-bottom: 1.5rem;
+          display: inline-block;
+          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+
         .home h1 {
-          font-size: 2.75rem;
-          margin-bottom: 0.75rem;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          font-size: 3.5rem;
+          margin-bottom: 1.5rem;
+          font-weight: 800;
+          letter-spacing: -0.025em;
+          color: var(--text-main);
+          line-height: 1.2;
+        }
+
+        .brand-text {
+          background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
+          display: inline-block;
+          padding-bottom: 0.2rem; /* Fix clipping */
         }
+
         .description {
-          color: #6b7280;
-          margin-bottom: 3.5rem;
-          font-size: 1.1rem;
-          line-height: 1.6;
-        }
-        .cards {
-          display: flex;
-          justify-content: center;
-          gap: 2rem;
-          margin-bottom: 3.5rem;
-          flex-wrap: wrap;
-        }
-        .card {
-          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-          padding: 2.25rem;
-          border-radius: 20px;
-          text-decoration: none;
-          color: inherit;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          min-width: 260px;
-          position: relative;
-          overflow: hidden;
-        }
-        .card::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(100, 108, 255, 0.1) 0%, transparent 50%);
-          opacity: 0;
-          transition: opacity 0.3s ease;
-        }
-        .card:hover {
-          border-color: rgba(100, 108, 255, 0.5);
-          transform: translateY(-8px) scale(1.02);
-          box-shadow: 0 20px 40px rgba(100, 108, 255, 0.2), 0 8px 16px rgba(0, 0, 0, 0.3);
-        }
-        .card:hover::before {
-          opacity: 1;
-        }
-        .card h2 {
-          margin-bottom: 0.75rem;
+          color: var(--text-muted);
           font-size: 1.35rem;
-          font-weight: 600;
-          position: relative;
+          line-height: 1.6;
+          max-width: 600px;
+          margin: 0 auto;
         }
-        .card p {
-          color: rgba(255, 255, 255, 0.6);
-          font-size: 0.95rem;
-          position: relative;
-          line-height: 1.5;
-        }
-        .features {
-          margin-top: 3rem;
-          text-align: left;
-          max-width: 450px;
+
+        .cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 2.5rem;
+          margin-bottom: 5rem;
+          max-width: 900px;
           margin-left: auto;
           margin-right: auto;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 16px;
-          padding: 1.75rem;
         }
-        .features h2 {
-          margin-bottom: 1.25rem;
+
+        .card {
+          background: var(--card-bg);
+          padding: 3rem 2rem;
+          border-radius: 20px;
+          text-decoration: none;
+          color: var(--text-main);
+          border: 1px solid var(--border-color);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           text-align: center;
-          font-size: 1.25rem;
-          font-weight: 600;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
         }
+
+        .card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+          border-color: var(--primary);
+        }
+
+        .card h2 {
+          margin-bottom: 1rem;
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: var(--text-main);
+        }
+
+        .card p {
+          color: var(--text-muted);
+          font-size: 1.1rem;
+          line-height: 1.5;
+        }
+
+        .features {
+          margin-top: 2rem;
+          text-align: left;
+          width: 100%;
+          max-width: 1000px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .features h2 {
+          margin-bottom: 3rem;
+          text-align: center;
+          font-size: 2.25rem;
+          font-weight: 700;
+          color: var(--text-main);
+        }
+
         .features ul {
           list-style: none;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 2rem;
+          padding: 0;
         }
+
         .features li {
-          padding: 0.75rem 0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          background: var(--card-bg);
+          padding: 1.5rem;
+          border-radius: 16px;
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 0.95rem;
-          transition: all 0.2s ease;
+          gap: 1.5rem;
+          border: 1px solid var(--border-color);
+          transition: transform 0.2s ease;
         }
+
         .features li:hover {
-          padding-left: 0.5rem;
-          color: #a5b4fc;
+          transform: scale(1.02);
+          border-color: var(--primary);
         }
-        .features li:last-child {
-          border-bottom: none;
+
+        .feature-icon {
+          font-size: 2rem;
+          flex-shrink: 0;
+          width: 3.5rem;
+          height: 3.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #EEF2FF; /* Light indigo background */
+          border-radius: 12px;
+          color: var(--primary);
+        }
+
+        .feature-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .feature-content strong {
+          color: var(--text-main);
+          font-weight: 700;
+          font-size: 1.1rem;
+          display: block;
+          margin-bottom: 0.25rem;
+        }
+
+        .feature-desc {
+          color: var(--text-muted);
+          font-size: 0.95rem;
+          line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+          .home {
+            padding: 2rem 1rem;
+          }
+          .home h1 {
+            font-size: 2.5rem;
+          }
+           .features ul {
+            grid-template-columns: 1fr;
+          }
+          .features li {
+            flex-direction: row;
+            padding: 1.25rem;
+          }
         }
       `}</style>
     </div>

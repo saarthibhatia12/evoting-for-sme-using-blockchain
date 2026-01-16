@@ -18,7 +18,10 @@ export const config = {
   // Blockchain
   blockchain: {
     rpcUrl: process.env.BLOCKCHAIN_RPC_URL || 'http://127.0.0.1:8545',
+    // Simple Voting contract address
     contractAddress: process.env.CONTRACT_ADDRESS || '',
+    // Quadratic Voting contract address (optional - defaults to simple if not set)
+    quadraticContractAddress: process.env.QUADRATIC_CONTRACT_ADDRESS || '',
     // Private key for signing transactions (admin wallet)
     // In production, use a secure key management solution
     privateKey: process.env.ADMIN_PRIVATE_KEY || '',

@@ -306,3 +306,67 @@
     transform: scale(1);
   }
 }
+
+/* ===========================================
+   QUADRATIC VOTING RESULTS STYLES
+   =========================================== */
+
+.quadratic-info-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+  border: 1px solid #7dd3fc;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-4);
+  font-size: var(--font-size-sm);
+  color: #0369a1;
+}
+
+.quadratic-info-banner .info-icon {
+  font-size: var(--font-size-lg);
+}
+
+.token-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  margin: var(--spacing-4) 0;
+  padding: var(--spacing-4);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-lg);
+}
+
+.token-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.token-label {
+  color: var(--color-gray-600);
+}
+
+.token-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-900);
+}
+
+/* Voting Type Badge in Meta */
+.results-meta .meta-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* Quadratic badge for proposal list */
+.badge-quadratic {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  color: white;
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-medium);
+}

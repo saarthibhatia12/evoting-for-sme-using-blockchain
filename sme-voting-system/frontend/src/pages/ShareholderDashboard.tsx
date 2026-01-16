@@ -5,6 +5,7 @@ import { Proposal } from '../services/proposalService';
 import { MyVote } from '../services/votingService';
 import ProposalCard from '../components/ProposalCard';
 import VoteModal from '../components/VoteModal';
+import QuadraticVoteModal from '../components/QuadraticVoteModal';
 import { useToast, LoadingSpinner } from '../components/ui';
 
 interface VoteStatusMap {
@@ -310,18 +311,39 @@ const ShareholderDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Vote Modal */}
-      <VoteModal
-        proposal={selectedProposal}
-        isOpen={isVoteModalOpen}
-        isVoting={isVoting}
-        userShares={user?.shares || 0}
-        onClose={() => {
-          setIsVoteModalOpen(false);
-          setSelectedProposal(null);
-        }}
-        onVote={handleVote}
-      />
+      {/* Vote Modal - Simple Voting */}
+      {selectedProposal?.votingType !== 'quadratic' && (
+        <VoteModal
+          proposal={selectedProposal}
+          isOpen={isVoteModalOpen}
+          isVoting={isVoting}
+          userShares={user?.shares || 0}
+          onClose={() => {
+            setIsVoteModalOpen(false);
+            setSelectedProposal(null);
+          }}
+          onVote={handleVote}
+        />
+      )}
+
+      {/* Quadratic Vote Modal */}
+      {selectedProposal?.votingType === 'quadratic' && (
+        <QuadraticVoteModal
+          proposal={selectedProposal}
+          isOpen={isVoteModalOpen}
+          onClose={() => {
+            setIsVoteModalOpen(false);
+            setSelectedProposal(null);
+          }}
+          onVoteSuccess={async () => {
+            showToast('Quadratic vote cast successfully!', 'success');
+            setIsVoteModalOpen(false);
+            setSelectedProposal(null);
+            await fetchData();
+            await refreshUser();
+          }}
+        />
+      )}
 
       <style>{`
         .shareholder-dashboard {

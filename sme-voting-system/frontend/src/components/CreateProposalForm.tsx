@@ -15,6 +15,8 @@ const CreateProposalForm: React.FC<CreateProposalFormProps> = ({ onSuccess, onCa
     description: '',
     startTime: '',
     endTime: '',
+    votingType: 'simple',
+    baseTokens: 100,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +98,8 @@ const CreateProposalForm: React.FC<CreateProposalFormProps> = ({ onSuccess, onCa
         description: formData.description?.trim() || undefined,
         startTime: new Date(formData.startTime).toISOString(),
         endTime: new Date(formData.endTime).toISOString(),
+        votingType: formData.votingType,
+        baseTokens: formData.votingType === 'quadratic' ? formData.baseTokens : undefined,
       });
 
       if (response.success) {
@@ -165,6 +169,61 @@ const CreateProposalForm: React.FC<CreateProposalFormProps> = ({ onSuccess, onCa
             <span className="char-count">{formData.description?.length || 0}/2000</span>
           </div>
         </div>
+
+        {/* Voting Type Selector */}
+        <div className="form-group">
+          <label>Voting Type</label>
+          <div className="voting-type-selector">
+            <button
+              type="button"
+              className={`type-btn ${formData.votingType === 'simple' ? 'active' : ''}`}
+              onClick={() => setFormData(prev => ({ ...prev, votingType: 'simple' }))}
+              disabled={isSubmitting}
+            >
+              <span className="type-icon">📋</span>
+              <span className="type-label">Simple Voting</span>
+              <span className="type-desc">1 share = 1 vote</span>
+            </button>
+            <button
+              type="button"
+              className={`type-btn ${formData.votingType === 'quadratic' ? 'active' : ''}`}
+              onClick={() => setFormData(prev => ({ ...prev, votingType: 'quadratic' }))}
+              disabled={isSubmitting}
+            >
+              <span className="type-icon">📊</span>
+              <span className="type-label">Quadratic Voting</span>
+              <span className="type-desc">Cost = votes²</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Base Token Pool (only for quadratic) */}
+        {formData.votingType === 'quadratic' && (
+          <div className="form-group base-tokens-group">
+            <label htmlFor="baseTokens">Base Token Pool</label>
+            <div className="base-tokens-input-wrapper">
+              <input
+                type="number"
+                id="baseTokens"
+                name="baseTokens"
+                value={formData.baseTokens}
+                onChange={(e) => {
+                  const value = Math.max(10, Math.min(1000, Number(e.target.value)));
+                  setFormData(prev => ({ ...prev, baseTokens: value }));
+                }}
+                min={10}
+                max={1000}
+                step={10}
+                disabled={isSubmitting}
+              />
+              <span className="tokens-label">tokens</span>
+            </div>
+            <small className="helper-text">
+              Tokens are distributed proportionally based on shares. 
+              A shareholder with 10% of shares gets 10% of the base tokens.
+            </small>
+          </div>
+        )}
 
         <div className="form-row">
           <div className="form-group">
@@ -437,6 +496,109 @@ const CreateProposalForm: React.FC<CreateProposalFormProps> = ({ onSuccess, onCa
           border-color: #9ca3af;
         }
 
+        /* Voting Type Selector Styles */
+        .voting-type-selector {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+
+        .type-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 1.25rem 1rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 12px;
+          background: white;
+          cursor: pointer;
+          transition: all 0.25s ease;
+          text-align: center;
+        }
+
+        .type-btn:hover:not(:disabled) {
+          border-color: #9ca3af;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .type-btn.active {
+          border-color: #3b82f6;
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02));
+          box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+        }
+
+        .type-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .type-icon {
+          font-size: 1.75rem;
+        }
+
+        .type-label {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #1f2937;
+        }
+
+        .type-desc {
+          font-size: 0.75rem;
+          color: #6b7280;
+        }
+
+        .type-btn.active .type-label {
+          color: #2563eb;
+        }
+
+        /* Base Tokens Input Styles */
+        .base-tokens-group {
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .base-tokens-input-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .base-tokens-input-wrapper input {
+          width: 120px;
+          padding: 0.75rem 1rem;
+          border: 1.5px solid #d1d5db;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 500;
+          text-align: center;
+        }
+
+        .base-tokens-input-wrapper input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+
+        .tokens-label {
+          font-size: 0.9rem;
+          color: #6b7280;
+          font-weight: 500;
+        }
+
+        .helper-text {
+          display: block;
+          margin-top: 0.5rem;
+          font-size: 0.8rem;
+          color: #9ca3af;
+          line-height: 1.5;
+        }
+
         @media (max-width: 640px) {
           .form-row {
             grid-template-columns: 1fr;
@@ -448,6 +610,10 @@ const CreateProposalForm: React.FC<CreateProposalFormProps> = ({ onSuccess, onCa
 
           .form-actions .btn {
             width: 100%;
+          }
+
+          .voting-type-selector {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>

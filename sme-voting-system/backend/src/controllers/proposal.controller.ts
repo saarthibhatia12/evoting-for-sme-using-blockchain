@@ -10,11 +10,18 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 /**
  * POST /proposals/create
  * Create a new proposal (Admin only)
- * Body: { title: string, description?: string, startTime: string|number, endTime: string|number }
+ * Body: { 
+ *   title: string, 
+ *   description?: string, 
+ *   startTime: string|number, 
+ *   endTime: string|number,
+ *   votingType?: 'simple' | 'quadratic',  // NEW: optional, defaults to 'simple'
+ *   baseTokens?: number                    // NEW: optional, defaults to 100
+ * }
  */
 export const createProposal = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, startTime, endTime } = req.body;
+    const { title, description, startTime, endTime, votingType, baseTokens } = req.body;
 
     // Validate required fields
     if (!title || !startTime || !endTime) {
@@ -62,11 +69,19 @@ export const createProposal = async (req: AuthenticatedRequest, res: Response): 
       return;
     }
 
+    // Validate votingType if provided (optional with default 'simple')
+    const validVotingType = votingType === 'quadratic' ? 'quadratic' : 'simple';
+    
+    // Validate baseTokens if provided (optional with default 100)
+    const validBaseTokens = typeof baseTokens === 'number' && baseTokens > 0 ? baseTokens : 100;
+
     const result = await proposalService.createProposal(
       title,
       description,
       parsedStartTime,
-      parsedEndTime
+      parsedEndTime,
+      validVotingType,   // NEW: Pass voting type (defaults to 'simple')
+      validBaseTokens    // NEW: Pass base tokens (defaults to 100)
     );
 
     res.status(201).json({

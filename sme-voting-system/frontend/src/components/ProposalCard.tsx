@@ -69,7 +69,12 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
   return (
     <div className="proposal-card">
       <div className="proposal-header">
-        <h3 className="proposal-title">{proposal.title}</h3>
+        <div className="proposal-title-section">
+          <h3 className="proposal-title">{proposal.title}</h3>
+          <span className={`voting-type-badge ${proposal.votingType || 'simple'}`}>
+            {proposal.votingType === 'quadratic' ? '📊 Quadratic' : '📋 Simple'}
+          </span>
+        </div>
         {getStatusBadge()}
       </div>
 
@@ -143,13 +148,42 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
           margin-bottom: 0.75rem;
         }
 
+        .proposal-title-section {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
         .proposal-title {
           font-size: 1.1rem;
           font-weight: 600;
           color: #1f2937;
           margin: 0;
-          flex: 1;
           line-height: 1.4;
+        }
+
+        .voting-type-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 0.65rem;
+          padding: 0.25rem 0.6rem;
+          border-radius: 6px;
+          font-weight: 500;
+          width: fit-content;
+        }
+
+        .voting-type-badge.simple {
+          background: rgba(59, 130, 246, 0.1);
+          color: #2563eb;
+          border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .voting-type-badge.quadratic {
+          background: rgba(139, 92, 246, 0.1);
+          color: #7c3aed;
+          border: 1px solid rgba(139, 92, 246, 0.2);
         }
 
         .status-badge {

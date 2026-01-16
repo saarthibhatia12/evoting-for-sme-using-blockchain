@@ -11,11 +11,15 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 /**
  * POST /vote
  * Cast a vote on a proposal (Shareholders only)
- * Body: { proposalId: number, voteChoice: boolean }
+ * Body: { 
+ *   proposalId: number, 
+ *   voteChoice: boolean,
+ *   voteCount?: number  // NEW: optional, for quadratic voting (default: 1)
+ * }
  */
 export const castVote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { proposalId, voteChoice } = req.body;
+    const { proposalId, voteChoice, voteCount } = req.body;
 
     // Validate required fields
     if (proposalId === undefined || voteChoice === undefined) {
@@ -53,19 +57,39 @@ export const castVote = async (req: AuthenticatedRequest, res: Response): Promis
       return;
     }
 
+    // Parse optional voteCount (default: 1 for backward compatibility)
+    const parsedVoteCount = typeof voteCount === 'number' && voteCount > 0 
+      ? Math.floor(voteCount) 
+      : 1;
+
     const result = await votingService.castVote(
       req.user.walletAddress,
       parsedProposalId,
-      voteChoice
+      voteChoice,
+      parsedVoteCount  // NEW: Pass vote count (defaults to 1)
     );
+
+    // Build response data - include quadratic voting fields if present
+    const responseData: any = {
+      vote: result.vote,
+      blockchainTx: result.blockchainTx,
+    };
+
+    // Add quadratic voting info if present
+    if (result.tokensSpent !== undefined) {
+      responseData.tokensSpent = result.tokensSpent;
+    }
+    if (result.remainingTokens !== undefined) {
+      responseData.remainingTokens = result.remainingTokens;
+    }
+    if (result.votingPower !== undefined) {
+      responseData.votingPower = result.votingPower;
+    }
 
     res.status(201).json({
       success: true,
-      data: {
-        vote: result.vote,
-        blockchainTx: result.blockchainTx,
-      },
-      message: `Vote cast successfully: ${voteChoice ? 'YES' : 'NO'}`,
+      data: responseData,
+      message: `Vote cast successfully: ${voteChoice ? 'YES' : 'NO'}${parsedVoteCount > 1 ? ` (${parsedVoteCount} votes)` : ''}`,
     });
   } catch (error: any) {
     console.error('❌ Error casting vote:', error.message);

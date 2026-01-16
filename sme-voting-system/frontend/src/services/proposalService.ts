@@ -17,6 +17,9 @@ export interface Proposal {
   votingOpen: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // Quadratic voting support
+  votingType?: 'simple' | 'quadratic';
+  baseTokens?: number;
 }
 
 export interface ProposalWithBlockchain extends Proposal {
@@ -49,6 +52,9 @@ export interface CreateProposalRequest {
   description?: string;
   startTime: string;
   endTime: string;
+  // Quadratic voting support (optional - defaults to simple)
+  votingType?: 'simple' | 'quadratic';
+  baseTokens?: number;
 }
 
 export interface ProposalsResponse {

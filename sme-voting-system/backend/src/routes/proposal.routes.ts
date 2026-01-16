@@ -7,6 +7,10 @@ import {
   deactivateProposal,
 } from '../controllers/proposal.controller';
 import {
+  getTokenBalance,
+  getQuadraticResults,
+} from '../controllers/quadratic-voting.controller';
+import {
   authenticate,
   requireShareholder,
   requireAdmin,
@@ -48,5 +52,17 @@ router.get('/:proposalId', authenticate, validateProposalIdParam, getProposalByI
  * Deactivate a proposal (Admin only)
  */
 router.delete('/:proposalId', authenticate, requireShareholder, requireAdmin, validateProposalIdParam, deactivateProposal);
+
+/**
+ * GET /proposals/:proposalId/token-balance
+ * Get the current user's token balance for a quadratic voting proposal
+ */
+router.get('/:proposalId/token-balance', authenticate, requireShareholder, validateProposalIdParam, getTokenBalance);
+
+/**
+ * GET /proposals/:proposalId/quadratic-results
+ * Get the quadratic voting results for a proposal
+ */
+router.get('/:proposalId/quadratic-results', authenticate, validateProposalIdParam, getQuadraticResults);
 
 export default router;

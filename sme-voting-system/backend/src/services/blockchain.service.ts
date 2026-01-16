@@ -1,6 +1,7 @@
 import { ethers, Contract, JsonRpcProvider, Wallet, ContractTransactionResponse } from 'ethers';
 import { config } from '../config';
 import { VotingContractABI } from '../contracts/VotingABI';
+import { QuadraticVotingABI } from '../contracts/QuadraticVotingABI';
 
 /**
  * Proposal data structure from smart contract
@@ -42,6 +43,7 @@ class BlockchainService {
   private provider: JsonRpcProvider | null = null;
   private signer: Wallet | null = null;
   private contract: Contract | null = null;
+  private quadraticContract: Contract | null = null;  // NEW: QuadraticVoting contract
   private isInitialized: boolean = false;
   
   // Transaction queue to prevent nonce conflicts
@@ -50,7 +52,7 @@ class BlockchainService {
 
   /**
    * Initialize the blockchain connection
-   * Connects to the Hardhat local network and sets up the contract
+   * Connects to the Hardhat local network and sets up the contracts
    */
   async initialize(): Promise<void> {
     try {
@@ -74,16 +76,28 @@ class BlockchainService {
         console.log(`✅ Using default Hardhat account: ${this.signer.address}`);
       }
 
-      // Initialize contract if address is provided
+      // Initialize Voting contract if address is provided
       if (config.blockchain.contractAddress) {
         this.contract = new Contract(
           config.blockchain.contractAddress,
           VotingContractABI,
           this.signer
         );
-        console.log(`✅ Contract loaded at: ${config.blockchain.contractAddress}`);
+        console.log(`✅ Voting contract loaded at: ${config.blockchain.contractAddress}`);
       } else {
         console.log('⚠️  No contract address provided. Set CONTRACT_ADDRESS in .env');
+      }
+
+      // Initialize QuadraticVoting contract if address is provided
+      if (config.blockchain.quadraticContractAddress) {
+        this.quadraticContract = new Contract(
+          config.blockchain.quadraticContractAddress,
+          QuadraticVotingABI,
+          this.signer
+        );
+        console.log(`✅ QuadraticVoting contract loaded at: ${config.blockchain.quadraticContractAddress}`);
+      } else {
+        console.log('⚠️  No quadratic contract address provided. Set QUADRATIC_CONTRACT_ADDRESS in .env');
       }
 
       this.isInitialized = true;
@@ -99,6 +113,15 @@ class BlockchainService {
   private ensureInitialized(): void {
     if (!this.isInitialized || !this.contract) {
       throw new Error('Blockchain service not initialized or contract not loaded');
+    }
+  }
+
+  /**
+   * Check if the quadratic contract is initialized
+   */
+  private ensureQuadraticInitialized(): void {
+    if (!this.isInitialized || !this.quadraticContract) {
+      throw new Error('Blockchain service not initialized or QuadraticVoting contract not loaded. Set QUADRATIC_CONTRACT_ADDRESS in .env');
     }
   }
 
@@ -121,6 +144,13 @@ class BlockchainService {
    */
   getContract(): Contract | null {
     return this.contract;
+  }
+
+  /**
+   * Get the quadratic contract instance
+   */
+  getQuadraticContract(): Contract | null {
+    return this.quadraticContract;
   }
 
   /**
@@ -325,6 +355,131 @@ class BlockchainService {
         success: false,
         txHash: '',
         error: error.message || 'Failed to create proposal',
+      };
+    }
+  }
+
+  /**
+   * Create a new quadratic voting proposal on the blockchain
+   * @param title - Title of the proposal
+   * @param startTime - Unix timestamp for voting start
+   * @param endTime - Unix timestamp for voting end
+   * @param baseTokens - Base token pool for distribution (default: 100)
+   */
+  async createQuadraticProposal(
+    title: string,
+    startTime: number,
+    endTime: number,
+    baseTokens: number = 100
+  ): Promise<TransactionResult & { proposalId?: number }> {
+    this.ensureQuadraticInitialized();
+    
+    try {
+      console.log(`📝 Creating quadratic proposal: "${title}"`);
+      console.log(`   Start: ${new Date(startTime * 1000).toISOString()}`);
+      console.log(`   End: ${new Date(endTime * 1000).toISOString()}`);
+      console.log(`   Base Tokens: ${baseTokens}`);
+      
+      const tx: ContractTransactionResponse = await this.quadraticContract!.createQuadraticProposal(
+        title,
+        startTime,
+        endTime,
+        baseTokens
+      );
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      // Get the new proposal count (which is the new proposal ID)
+      const proposalCount = await this.quadraticContract!.proposalCount();
+      
+      console.log(`✅ Quadratic proposal created with ID: ${proposalCount}. TX: ${tx.hash}`);
+      
+      return {
+        success: true,
+        txHash: tx.hash,
+        proposalId: Number(proposalCount),
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to create quadratic proposal:', error.message);
+      return {
+        success: false,
+        txHash: '',
+        error: error.message || 'Failed to create quadratic proposal',
+      };
+    }
+  }
+
+  /**
+   * Initialize voter tokens for a quadratic voting proposal
+   * @param proposalId - ID of the proposal
+   * @param voterAddress - Address of the voter
+   * @param tokens - Number of tokens to allocate
+   */
+  async initializeVoterTokens(
+    proposalId: number,
+    voterAddress: string,
+    tokens: number
+  ): Promise<TransactionResult> {
+    this.ensureQuadraticInitialized();
+    
+    try {
+      console.log(`🎟️ Initializing tokens: Proposal=${proposalId}, Voter=${voterAddress}, Tokens=${tokens}`);
+      
+      const tx: ContractTransactionResponse = await this.quadraticContract!.initializeVoterTokens(
+        proposalId,
+        voterAddress,
+        tokens
+      );
+      
+      await tx.wait();
+      
+      console.log(`✅ Tokens initialized. TX: ${tx.hash}`);
+      
+      return {
+        success: true,
+        txHash: tx.hash,
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to initialize voter tokens:', error.message);
+      return {
+        success: false,
+        txHash: '',
+        error: error.message || 'Failed to initialize voter tokens',
+      };
+    }
+  }
+
+  /**
+   * Add shareholder to QuadraticVoting contract
+   * @param address - Shareholder address
+   * @param shares - Number of shares
+   */
+  async addShareholderToQuadratic(address: string, shares: number): Promise<TransactionResult> {
+    this.ensureQuadraticInitialized();
+    
+    try {
+      console.log(`👤 Adding shareholder to QuadraticVoting: ${address} with ${shares} shares`);
+      
+      const tx: ContractTransactionResponse = await this.quadraticContract!.addShareholder(
+        address,
+        shares
+      );
+      
+      await tx.wait();
+      
+      console.log(`✅ Shareholder added to QuadraticVoting. TX: ${tx.hash}`);
+      
+      return {
+        success: true,
+        txHash: tx.hash,
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to add shareholder to QuadraticVoting:', error.message);
+      return {
+        success: false,
+        txHash: '',
+        error: error.message || 'Failed to add shareholder to QuadraticVoting',
       };
     }
   }
