@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { proposalService, votingService } from '../services';
-import { Proposal, ProposalResult } from '../services/proposalService';
+import { 
+  Proposal, 
+  ProposalResult, 
+  FinalResultResponse,
+  TieResolutionType 
+} from '../services/proposalService';
 import { Vote, QuadraticResults } from '../services/votingService';
+import { useAuth } from '../context/AuthContext';
+import TieResolutionModal from './TieResolutionModal';
 
 interface ProposalResultsViewProps {
   proposalId?: number;
 }
 
 const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId }) => {
+  const { user } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [results, setResults] = useState<ProposalResult | null>(null);
@@ -16,6 +24,13 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Tie Resolution State
+  const [finalResult, setFinalResult] = useState<FinalResultResponse['data'] | null>(null);
+  const [showTieModal, setShowTieModal] = useState(false);
+
+  // Check if current user is admin
+  const isAdmin = user?.isAdmin ?? false;
 
   // Fetch all proposals
   const fetchProposals = useCallback(async () => {
@@ -49,6 +64,7 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
       setLoadingResults(true);
       setError(null);
       setQuadraticResults(null); // Reset quadratic results
+      setFinalResult(null); // Reset final result / tie status
 
       // Check if this is a quadratic voting proposal
       if (proposal.votingType === 'quadratic') {
@@ -67,6 +83,18 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
       const resultsResponse = await proposalService.getProposalResults(proposal.proposalId);
       if (resultsResponse.success) {
         setResults(resultsResponse.data);
+      }
+
+      // Fetch final result (includes tie status) for ended proposals
+      if (proposal.status === 'ended') {
+        try {
+          const finalResultResponse = await proposalService.getFinalResult(proposal.proposalId);
+          if (finalResultResponse.success) {
+            setFinalResult(finalResultResponse.data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch final result:', err);
+        }
       }
 
       // Fetch vote breakdown
@@ -99,6 +127,16 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
 
   const handleProposalSelect = (proposal: Proposal) => {
     setSelectedProposal(proposal);
+  };
+
+  // Handler for when a tie is resolved
+  const handleTieResolved = (resolutionType: TieResolutionType) => {
+    console.log('Tie resolved with:', resolutionType);
+    // Refresh the results to show updated status
+    if (selectedProposal) {
+      fetchResults(selectedProposal);
+    }
+    setShowTieModal(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -284,15 +322,57 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
 
                     {/* Winner indicator */}
                     {selectedProposal.status === 'ended' && (
-                      <div className={`winner-banner ${quadraticResults.yesPercentage > quadraticResults.noPercentage ? 'passed' : 'rejected'}`}>
-                        {quadraticResults.yesPercentage > quadraticResults.noPercentage ? (
-                          <>✅ Proposal PASSED with {quadraticResults.yesPercentage.toFixed(1)}% approval</>
-                        ) : quadraticResults.yesPercentage === quadraticResults.noPercentage ? (
-                          <>⚖️ Voting ended in a TIE</>
+                      <>
+                        {/* Check if this is a tie situation */}
+                        {finalResult?.isTied ? (
+                          <>
+                            {/* Tie has been resolved */}
+                            {finalResult.tieResolutionType ? (
+                              <div className={`winner-banner ${finalResult.status === 'APPROVED' ? 'passed' : 'rejected'}`}>
+                                {finalResult.status === 'APPROVED' ? (
+                                  <>✅ Proposal APPROVED via Chairperson's tie-breaking vote</>
+                                ) : finalResult.tieResolutionType === 'STATUS_QUO_REJECT' ? (
+                                  <>❌ Proposal REJECTED (Status Quo - Tie broken by maintaining status quo)</>
+                                ) : (
+                                  <>❌ Proposal REJECTED via Chairperson's tie-breaking vote</>
+                                )}
+                              </div>
+                            ) : (
+                              /* Tie is pending resolution */
+                              <div className="tie-pending-section">
+                                <div className="winner-banner tied">
+                                  ⚖️ Voting ended in a TIE ({quadraticResults.yesVotingPower.toFixed(2)} vs {quadraticResults.noVotingPower.toFixed(2)})
+                                </div>
+                                {isAdmin ? (
+                                  <div className="tie-admin-action">
+                                    <p>As an Admin, you can resolve this tie:</p>
+                                    <button 
+                                      className="btn btn-primary resolve-tie-btn"
+                                      onClick={() => setShowTieModal(true)}
+                                    >
+                                      ⚖️ Resolve Tie
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="tie-waiting-message">
+                                    <span className="waiting-icon">⏳</span>
+                                    <span>Awaiting Chairperson's decision to break the tie</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
                         ) : (
-                          <>❌ Proposal REJECTED with {quadraticResults.noPercentage.toFixed(1)}% against</>
+                          /* Normal (non-tie) result */
+                          <div className={`winner-banner ${quadraticResults.yesPercentage > quadraticResults.noPercentage ? 'passed' : 'rejected'}`}>
+                            {quadraticResults.yesPercentage > quadraticResults.noPercentage ? (
+                              <>✅ Proposal PASSED with {quadraticResults.yesPercentage.toFixed(1)}% approval</>
+                            ) : (
+                              <>❌ Proposal REJECTED with {quadraticResults.noPercentage.toFixed(1)}% against</>
+                            )}
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
                   </>
                 ) : (
@@ -340,15 +420,57 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
 
                     {/* Winner indicator */}
                     {selectedProposal.status === 'ended' && (
-                      <div className={`winner-banner ${results.yesPercentage > results.noPercentage ? 'passed' : 'rejected'}`}>
-                        {results.yesPercentage > results.noPercentage ? (
-                          <>✅ Proposal PASSED with {results.yesPercentage.toFixed(1)}% approval</>
-                        ) : results.yesPercentage === results.noPercentage ? (
-                          <>⚖️ Voting ended in a TIE</>
+                      <>
+                        {/* Check if this is a tie situation */}
+                        {finalResult?.isTied ? (
+                          <>
+                            {/* Tie has been resolved */}
+                            {finalResult.tieResolutionType ? (
+                              <div className={`winner-banner ${finalResult.status === 'APPROVED' ? 'passed' : 'rejected'}`}>
+                                {finalResult.status === 'APPROVED' ? (
+                                  <>✅ Proposal APPROVED via Chairperson's tie-breaking vote</>
+                                ) : finalResult.tieResolutionType === 'STATUS_QUO_REJECT' ? (
+                                  <>❌ Proposal REJECTED (Status Quo - Tie broken by maintaining status quo)</>
+                                ) : (
+                                  <>❌ Proposal REJECTED via Chairperson's tie-breaking vote</>
+                                )}
+                              </div>
+                            ) : (
+                              /* Tie is pending resolution */
+                              <div className="tie-pending-section">
+                                <div className="winner-banner tied">
+                                  ⚖️ Voting ended in a TIE ({parseInt(results.yesVotes)} vs {parseInt(results.noVotes)})
+                                </div>
+                                {isAdmin ? (
+                                  <div className="tie-admin-action">
+                                    <p>As an Admin, you can resolve this tie:</p>
+                                    <button 
+                                      className="btn btn-primary resolve-tie-btn"
+                                      onClick={() => setShowTieModal(true)}
+                                    >
+                                      ⚖️ Resolve Tie
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="tie-waiting-message">
+                                    <span className="waiting-icon">⏳</span>
+                                    <span>Awaiting Chairperson's decision to break the tie</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
                         ) : (
-                          <>❌ Proposal REJECTED with {results.noPercentage.toFixed(1)}% against</>
+                          /* Normal (non-tie) result */
+                          <div className={`winner-banner ${results.yesPercentage > results.noPercentage ? 'passed' : 'rejected'}`}>
+                            {results.yesPercentage > results.noPercentage ? (
+                              <>✅ Proposal PASSED with {results.yesPercentage.toFixed(1)}% approval</>
+                            ) : (
+                              <>❌ Proposal REJECTED with {results.noPercentage.toFixed(1)}% against</>
+                            )}
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
                   </>
                 )}
@@ -399,6 +521,20 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
           )}
         </div>
       </div>
+
+      {/* Tie Resolution Modal */}
+      {selectedProposal && finalResult && (
+        <TieResolutionModal
+          isOpen={showTieModal}
+          proposalId={selectedProposal.proposalId}
+          proposalTitle={selectedProposal.title}
+          yesVotes={finalResult.yesVotes}
+          noVotes={finalResult.noVotes}
+          votingType={selectedProposal.votingType || 'simple'}
+          onClose={() => setShowTieModal(false)}
+          onResolved={handleTieResolved}
+        />
+      )}
 
       <style>{`
         .proposal-results-view {
@@ -669,6 +805,63 @@ const ProposalResultsView: React.FC<ProposalResultsViewProps> = ({ proposalId })
 
         .winner-banner.passed { background: #dcfce7; color: #166534; }
         .winner-banner.rejected { background: #fee2e2; color: #991b1b; }
+        .winner-banner.tied { background: #fef3c7; color: #92400e; }
+
+        /* Tie Resolution Styles */
+        .tie-pending-section {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .tie-admin-action {
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
+          border-radius: 8px;
+          padding: 1rem;
+          text-align: center;
+        }
+
+        .tie-admin-action p {
+          margin: 0 0 0.75rem 0;
+          color: #1e40af;
+          font-weight: 500;
+        }
+
+        .resolve-tie-btn {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          border: none;
+          padding: 0.75rem 1.5rem;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 0.95rem;
+        }
+
+        .resolve-tie-btn:hover {
+          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .tie-waiting-message {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 1rem;
+          color: #4b5563;
+          font-weight: 500;
+        }
+
+        .waiting-icon {
+          font-size: 1.25rem;
+        }
 
         .votes-table-container {
           overflow-x: auto;

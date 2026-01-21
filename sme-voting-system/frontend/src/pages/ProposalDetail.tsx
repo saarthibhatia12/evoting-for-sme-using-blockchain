@@ -19,6 +19,8 @@ const ProposalDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [userVoteChoice, setUserVoteChoice] = useState<boolean | null>(null);
+  const [userVoteWeight, setUserVoteWeight] = useState<number | null>(null);
+  const [userTokensSpent, setUserTokensSpent] = useState<number | null>(null);
   
   // Vote modal
   const [isVoteModalOpen, setIsVoteModalOpen] = useState(false);
@@ -66,13 +68,15 @@ const ProposalDetail: React.FC = () => {
         // Vote status check failed
       }
 
-      // Get user's vote choice
+      // Get user's vote choice and weight info
       try {
         const myVotesResponse = await votingService.getMyVotes();
         if (myVotesResponse.success) {
           const myVote = myVotesResponse.data.votes.find(v => v.proposalId === proposalId);
           if (myVote) {
             setUserVoteChoice(myVote.voteChoice);
+            setUserVoteWeight(myVote.voteWeight);
+            setUserTokensSpent(myVote.tokensSpent);
             setHasVoted(true);
           }
         }
@@ -312,14 +316,27 @@ const ProposalDetail: React.FC = () => {
               {hasVoted && (
                 <div className={`voted-message ${userVoteChoice ? 'voted-yes' : 'voted-no'}`}>
                   <span className="vote-icon">{userVoteChoice ? '👍' : '👎'}</span>
-                  <span>You voted: <strong>{userVoteChoice ? 'YES' : 'NO'}</strong></span>
+                  <div className="vote-details">
+                    <span>You voted: <strong>{userVoteChoice ? 'YES' : 'NO'}</strong></span>
+                    {userVoteWeight !== null && userVoteWeight > 0 && (
+                      <span className="vote-weight-detail">
+                        {proposal?.votingType === 'quadratic' 
+                          ? `(${userVoteWeight} vote${userVoteWeight > 1 ? 's' : ''}, cost: ${userTokensSpent || 0} tokens)`
+                          : `(Weight: ${userVoteWeight} shares)`}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* Vote Button for active proposals */}
               {proposal.status === 'active' && proposal.votingOpen && !hasVoted && user && (
                 <div className="vote-actions">
-                  <p className="vote-prompt">Your voting weight: <strong>{user.shares} shares</strong></p>
+                  <p className="vote-prompt">
+                    {proposal?.votingType === 'quadratic'
+                      ? <>Available tokens: <strong>{proposal?.baseTokens || 100} tokens</strong></>
+                      : <>Your voting weight: <strong>{user.shares} shares</strong></>}
+                  </p>
                   <button
                     className="btn btn-primary btn-lg vote-btn"
                     onClick={() => setIsVoteModalOpen(true)}
@@ -553,6 +570,17 @@ const ProposalDetail: React.FC = () => {
           border-radius: 8px;
           margin-top: 1.5rem;
           font-size: 1rem;
+        }
+
+        .vote-details {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .vote-weight-detail {
+          font-size: 0.85rem;
+          opacity: 0.85;
         }
 
         .voted-message.voted-yes {

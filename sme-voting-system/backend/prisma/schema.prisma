@@ -8,19 +8,17 @@ datasource db {
 }
 
 model Shareholder {
-  id            Int      @id @default(autoincrement())
-  walletAddress String   @unique @map("wallet_address") @db.VarChar(42)
-  name          String   @db.VarChar(255)
-  email         String   @unique @db.VarChar(255)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  isActive      Boolean  @default(true) @map("is_active")
-  isAdmin       Boolean  @default(false) @map("is_admin")
-  shares        Share?
-  votes         Vote[]
-  
-  // NEW: Quadratic voting - voter token balances
+  id                 Int                 @id @default(autoincrement())
+  walletAddress      String              @unique @map("wallet_address") @db.VarChar(42)
+  name               String              @db.VarChar(255)
+  email              String              @unique @db.VarChar(255)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  isActive           Boolean             @default(true) @map("is_active")
+  isAdmin            Boolean             @default(false) @map("is_admin")
+  shares             Share?
   voterTokenBalances VoterTokenBalance[]
+  votes              Vote[]
 
   @@map("shareholders")
 }
@@ -37,21 +35,23 @@ model Share {
 }
 
 model Proposal {
-  id          Int      @id @default(autoincrement())
-  proposalId  Int      @unique @map("proposal_id")
-  title       String   @db.VarChar(500)
-  description String?  @db.Text
-  startTime   DateTime @map("start_time")
-  endTime     DateTime @map("end_time")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  votes       Vote[]
-  
-  // NEW: Quadratic voting support - ALL with safe defaults
-  votingType  String   @default("simple") @map("voting_type") @db.VarChar(20)
-  baseTokens  Int      @default(100) @map("base_tokens")
-  voterTokens VoterTokenBalance[]
+  id                   Int                 @id @default(autoincrement())
+  proposalId           Int                 @unique @map("proposal_id")
+  title                String              @db.VarChar(500)
+  description          String?             @db.Text
+  startTime            DateTime            @map("start_time")
+  endTime              DateTime            @map("end_time")
+  isActive             Boolean             @default(true) @map("is_active")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  baseTokens           Int                 @default(100) @map("base_tokens")
+  votingType           String              @default("simple") @map("voting_type") @db.VarChar(20)
+  isTied               Boolean             @default(false) @map("is_tied")
+  tieResolutionType    String?             @map("tie_resolution_type") @db.VarChar(30)
+  tieResolvedAt        DateTime?           @map("tie_resolved_at")
+  tieResolvedByAdminId Int?                @map("tie_resolved_by_admin_id")
+  voterTokens          VoterTokenBalance[]
+  votes                Vote[]
 
   @@map("proposals")
 }
@@ -73,32 +73,28 @@ model Vote {
   voteChoice    Boolean     @map("vote_choice")
   txHash        String?     @map("tx_hash") @db.VarChar(66)
   votedAt       DateTime    @default(now()) @map("voted_at")
+  tokensSpent   Int         @default(0) @map("tokens_spent")
+  voteWeight    Int         @default(1) @map("vote_weight")
   proposal      Proposal    @relation(fields: [proposalId], references: [proposalId], onDelete: Cascade)
   shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
-  
-  // NEW: Quadratic voting fields with SAFE DEFAULTS
-  voteWeight    Int         @default(1) @map("vote_weight")      // Default 1 for simple voting
-  tokensSpent   Int         @default(0) @map("tokens_spent")     // Default 0 for simple voting
 
   @@unique([shareholderId, proposalId])
   @@index([proposalId], map: "votes_proposal_id_fkey")
   @@map("votes")
 }
 
-// NEW MODEL: Quadratic voting token balances per voter per proposal
 model VoterTokenBalance {
   id            Int         @id @default(autoincrement())
   shareholderId Int         @map("shareholder_id")
   proposalId    Int         @map("proposal_id")
   totalTokens   Int         @map("total_tokens")
   tokensUsed    Int         @default(0) @map("tokens_used")
-  voteDirection Boolean?    @map("vote_direction")  // null = not voted yet, true = YES, false = NO
+  voteDirection Boolean?    @map("vote_direction")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
-  
-  shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
   proposal      Proposal    @relation(fields: [proposalId], references: [proposalId], onDelete: Cascade)
-  
+  shareholder   Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
+
   @@unique([shareholderId, proposalId])
   @@index([proposalId], map: "voter_token_balances_proposal_id_fkey")
   @@map("voter_token_balances")

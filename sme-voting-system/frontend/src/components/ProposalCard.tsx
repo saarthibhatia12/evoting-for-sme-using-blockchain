@@ -6,6 +6,8 @@ interface ProposalCardProps {
   proposal: Proposal;
   hasVoted?: boolean;
   userVote?: boolean;
+  voteWeight?: number;      // For simple: shares, For quadratic: vote count
+  tokensSpent?: number;     // For quadratic: cost (voteCount²)
   onVote?: (proposalId: number) => void;
   showVoteButton?: boolean;
 }
@@ -14,6 +16,8 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
   proposal,
   hasVoted = false,
   userVote,
+  voteWeight,
+  tokensSpent,
   onVote,
   showVoteButton = true,
 }) => {
@@ -99,7 +103,16 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
       {hasVoted && (
         <div className={`vote-status ${userVote ? 'voted-yes' : 'voted-no'}`}>
           <span className="vote-icon">{userVote ? '👍' : '👎'}</span>
-          <span>You voted: <strong>{userVote ? 'YES' : 'NO'}</strong></span>
+          <div className="vote-details">
+            <span>You voted: <strong>{userVote ? 'YES' : 'NO'}</strong></span>
+            {voteWeight !== undefined && voteWeight > 0 && (
+              <span className="vote-weight-info">
+                {proposal.votingType === 'quadratic' 
+                  ? `(${voteWeight} vote${voteWeight > 1 ? 's' : ''}, cost: ${tokensSpent || 0} tokens)`
+                  : `(Weight: ${voteWeight} shares)`}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -274,6 +287,17 @@ const ProposalCard: React.FC<ProposalCardProps> = ({
           border-radius: 8px;
           margin-bottom: 1rem;
           font-size: 0.9rem;
+        }
+
+        .vote-details {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .vote-weight-info {
+          font-size: 0.8rem;
+          opacity: 0.85;
         }
 
         .vote-status.voted-yes {

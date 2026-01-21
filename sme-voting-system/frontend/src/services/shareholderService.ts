@@ -5,18 +5,39 @@
 
 import api from './api';
 
+// Share object from backend (matches Prisma Share model)
+export interface ShareRecord {
+  id: number;
+  shareholderId: number;
+  shares: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Types matching backend responses
 export interface Shareholder {
   id: number;
   walletAddress: string;
   name: string;
   email: string;
-  shares: number;
+  shares: ShareRecord | null;  // Backend returns Share object, not a number
   isAdmin: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+// Helper function to get the actual share count from a Shareholder
+export const getShareCount = (shareholder: Shareholder): number => {
+  if (shareholder.shares === null || shareholder.shares === undefined) {
+    return 0;
+  }
+  // Handle both cases: shares as object or shares as number (for backward compatibility)
+  if (typeof shareholder.shares === 'number') {
+    return shareholder.shares;
+  }
+  return shareholder.shares.shares || 0;
+};
 
 export interface ShareholdersResponse {
   success: boolean;

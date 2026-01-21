@@ -163,7 +163,9 @@ class ProposalService {
       
       // If blockchain has data with votes, use it
       if (blockchainData && (blockchainData.yesVotes > 0n || blockchainData.noVotes > 0n)) {
-        const isVotingOpen = await blockchainService.isVotingOpen(proposalId);
+        const blockchainVotingOpen = await blockchainService.isVotingOpen(proposalId);
+        // Trust blockchain if it says open, otherwise fall back to time-based check
+        const isVotingOpen = blockchainVotingOpen || isVotingPeriodActive;
         
         return {
           proposal,
@@ -220,17 +222,29 @@ class ProposalService {
         let status: 'upcoming' | 'active' | 'ended';
         let votingOpen = false;
 
+        // Determine status based on time
         if (now < proposal.startTime) {
           status = 'upcoming';
+          votingOpen = false;
         } else if (now > proposal.endTime) {
           status = 'ended';
+          votingOpen = false;
         } else {
+          // Proposal is in active time window
           status = 'active';
-          // Check blockchain for actual voting status
+          
+          // Time-based check says voting should be open
+          const isInVotingPeriod = proposal.isActive && now >= proposal.startTime && now <= proposal.endTime;
+          
+          // Try to verify with blockchain, but trust the time-based check if blockchain fails or disagrees
           try {
-            votingOpen = await blockchainService.isVotingOpen(proposal.proposalId);
+            const blockchainVotingOpen = await blockchainService.isVotingOpen(proposal.proposalId);
+            // Use blockchain result if it says open, otherwise trust time-based check
+            // This handles cases where proposal might not be synced to blockchain yet
+            votingOpen = blockchainVotingOpen || isInVotingPeriod;
           } catch {
-            votingOpen = true; // Assume open if we can't check
+            // Blockchain unavailable - trust time-based check
+            votingOpen = isInVotingPeriod;
           }
         }
 
@@ -253,6 +267,15 @@ class ProposalService {
     yesVotes: bigint;
     noVotes: bigint;
   }> {
+    // Get the proposal to determine voting type
+    const proposal = await prisma.proposal.findFirst({
+      where: { proposalId },
+    });
+
+    if (!proposal) {
+      throw new Error('Proposal not found');
+    }
+
     // Get all votes for this proposal with shareholder shares
     const votes = await prisma.vote.findMany({
       where: { proposalId },
@@ -269,12 +292,20 @@ class ProposalService {
     let noVotes = 0n;
 
     for (const vote of votes) {
-      const shareWeight = BigInt(vote.shareholder.shares?.shares || 0);
+      let voteWeight: bigint;
+      
+      if (proposal.votingType === 'quadratic') {
+        // For quadratic voting, use voteWeight (vote count)
+        voteWeight = BigInt(vote.voteWeight);
+      } else {
+        // For simple voting, use share weight
+        voteWeight = BigInt(vote.shareholder.shares?.shares || 0);
+      }
       
       if (vote.voteChoice) {
-        yesVotes += shareWeight;
+        yesVotes += voteWeight;
       } else {
-        noVotes += shareWeight;
+        noVotes += voteWeight;
       }
     }
 
@@ -320,7 +351,8 @@ class ProposalService {
       // Blockchain has data, use it
       yesVotes = blockchainResult.yesVotes;
       noVotes = blockchainResult.noVotes;
-      votingOpen = blockchainResult.votingOpen;
+      // Trust blockchain if it says open, otherwise fall back to time-based check
+      votingOpen = blockchainResult.votingOpen || (isVotingPeriodActive && proposal.isActive);
     } else {
       // Blockchain data unavailable or empty - calculate from database
       console.log(`📊 Calculating results from database for proposal ${proposalId} (blockchain data unavailable)`);

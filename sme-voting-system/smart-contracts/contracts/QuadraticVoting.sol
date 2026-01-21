@@ -61,6 +61,10 @@ contract QuadraticVoting {
     /// @notice Total votes cast: proposalId => voterAddress => votes
     mapping(uint256 => mapping(address => uint256)) public votesCast;
 
+    /// @notice Mapping to store tie resolution type for proposals
+    /// @dev proposalId => resolutionType (e.g., "STATUS_QUO_REJECT", "CHAIRPERSON_YES", "CHAIRPERSON_NO")
+    mapping(uint256 => string) public tieResolution;
+
     // ============ Events ============
     
     /// @notice Emitted when the contract is deployed
@@ -94,6 +98,9 @@ contract QuadraticVoting {
         uint256 tokensCost,
         uint256 remainingTokens
     );
+
+    /// @notice Emitted when a tie is resolved by admin
+    event TieResolved(uint256 indexed proposalId, string resolutionType);
 
     // ============ Modifiers ============
     
@@ -451,5 +458,37 @@ contract QuadraticVoting {
             tokensSpent[_proposalId][_voter],
             voterTokens[_proposalId][_voter]
         );
+    }
+
+    // ============ Tie Resolution ============
+
+    /// @notice Resolves a tied proposal by recording the resolution type on-chain
+    /// @dev Can only be called by admin after voting has ended
+    /// @param _proposalId The ID of the proposal to resolve
+    /// @param _type The resolution type ("STATUS_QUO_REJECT", "CHAIRPERSON_YES", or "CHAIRPERSON_NO")
+    function resolveTie(uint256 _proposalId, string memory _type) public onlyAdmin {
+        require(proposals[_proposalId].exists, "Proposal does not exist");
+        require(!isVotingOpen(_proposalId), "Voting must be closed to resolve tie");
+        require(proposals[_proposalId].yesVotes == proposals[_proposalId].noVotes, "Proposal is not tied");
+        require(bytes(tieResolution[_proposalId]).length == 0, "Tie already resolved");
+        
+        // Validate resolution type
+        require(
+            keccak256(bytes(_type)) == keccak256(bytes("STATUS_QUO_REJECT")) ||
+            keccak256(bytes(_type)) == keccak256(bytes("CHAIRPERSON_YES")) ||
+            keccak256(bytes(_type)) == keccak256(bytes("CHAIRPERSON_NO")),
+            "Invalid resolution type"
+        );
+        
+        tieResolution[_proposalId] = _type;
+        emit TieResolved(_proposalId, _type);
+    }
+
+    /// @notice Gets the tie resolution type for a proposal
+    /// @param _proposalId The ID of the proposal
+    /// @return The resolution type, or empty string if not resolved
+    function getTieResolution(uint256 _proposalId) public view returns (string memory) {
+        require(proposals[_proposalId].exists, "Proposal does not exist");
+        return tieResolution[_proposalId];
     }
 }

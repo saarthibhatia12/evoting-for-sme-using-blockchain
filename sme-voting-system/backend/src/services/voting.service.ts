@@ -16,6 +16,9 @@ export interface VoteWithRelations extends Vote {
   proposal?: {
     proposalId: number;
     title: string;
+    startTime?: Date;
+    endTime?: Date;
+    votingType?: string;
   };
 }
 
@@ -201,6 +204,7 @@ class VotingService {
             title: true,
             startTime: true,
             endTime: true,
+            votingType: true,
           },
         },
       },
@@ -329,6 +333,9 @@ class VotingService {
     voteChoice: boolean;
     votedAt: Date;
     proposalStatus: 'upcoming' | 'active' | 'ended';
+    votingType: 'simple' | 'quadratic';
+    voteWeight: number;
+    tokensSpent: number;
   }>> {
     const votes = await this.getVotesByShareHolder(walletAddress);
     const now = new Date();
@@ -351,6 +358,9 @@ class VotingService {
         voteChoice: vote.voteChoice,
         votedAt: vote.votedAt,
         proposalStatus: status,
+        votingType: (proposal.votingType || 'simple') as 'simple' | 'quadratic',
+        voteWeight: vote.voteWeight,
+        tokensSpent: vote.tokensSpent,
       };
     });
   }

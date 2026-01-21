@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { proposalService, shareholderService } from '../services';
+import { getShareCount } from '../services/shareholderService';
 import CreateProposalForm from '../components/CreateProposalForm';
 import ShareholderManagement from '../components/ShareholderManagement';
 import ProposalResultsView from '../components/ProposalResultsView';
@@ -46,7 +47,7 @@ const AdminDashboard: React.FC = () => {
       const shareholdersRes = await shareholderService.getAllShareholders();
       if (shareholdersRes.success) {
         const shareholders = shareholdersRes.data.shareholders.filter(s => s.isActive);
-        const totalShares = shareholders.reduce((sum, s) => sum + Number(s.shares || 0), 0);
+        const totalShares = shareholders.reduce((sum, s) => sum + getShareCount(s), 0);
         setStats(prev => ({
           ...prev,
           totalShareholders: shareholders.length,

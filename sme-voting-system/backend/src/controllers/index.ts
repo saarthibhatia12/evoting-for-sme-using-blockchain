@@ -7,3 +7,4 @@ export * from './proposal.controller';
 export * from './shareholder.controller';
 export * from './voting.controller';
 export * from './quadratic-voting.controller';
+export * from './tie-resolution.controller';

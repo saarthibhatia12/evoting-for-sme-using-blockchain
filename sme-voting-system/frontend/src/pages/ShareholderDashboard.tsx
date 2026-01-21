@@ -12,6 +12,9 @@ interface VoteStatusMap {
   [proposalId: number]: {
     hasVoted: boolean;
     voteChoice?: boolean;
+    voteWeight?: number;      // For simple: shares, For quadratic: vote count
+    tokensSpent?: number;     // For quadratic: cost (voteCount²)
+    votingType?: 'simple' | 'quadratic';
   };
 }
 
@@ -51,11 +54,14 @@ const ShareholderDashboard: React.FC = () => {
       
       if (votesResponse.success) {
         setMyVotes(votesResponse.data.votes);
-        // Add all votes to status map with their choices
+        // Add all votes to status map with their choices and weight info
         votesResponse.data.votes.forEach((vote) => {
           statusMap[vote.proposalId] = {
             hasVoted: true,
             voteChoice: vote.voteChoice,
+            voteWeight: vote.voteWeight,
+            tokensSpent: vote.tokensSpent,
+            votingType: vote.votingType,
           };
         });
       }
@@ -303,6 +309,8 @@ const ShareholderDashboard: React.FC = () => {
                 proposal={proposal}
                 hasVoted={voteStatusMap[proposal.proposalId]?.hasVoted}
                 userVote={voteStatusMap[proposal.proposalId]?.voteChoice}
+                voteWeight={voteStatusMap[proposal.proposalId]?.voteWeight}
+                tokensSpent={voteStatusMap[proposal.proposalId]?.tokensSpent}
                 onVote={handleOpenVoteModal}
                 showVoteButton={true}
               />

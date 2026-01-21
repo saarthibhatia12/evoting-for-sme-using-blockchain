@@ -84,6 +84,54 @@ export interface CreateProposalResponse {
   message: string;
 }
 
+// =============================================================================
+// TIE RESOLUTION TYPES
+// =============================================================================
+
+export type TieResolutionType = 'STATUS_QUO_REJECT' | 'CHAIRPERSON_YES' | 'CHAIRPERSON_NO';
+export type FinalResultStatus = 'APPROVED' | 'REJECTED' | 'TIE_PENDING' | 'VOTING_ACTIVE' | 'NOT_STARTED';
+
+export interface TieStatusResponse {
+  success: boolean;
+  data: {
+    proposalId: number;
+    isTied: boolean;
+    isResolved: boolean;
+    tieResolutionType: TieResolutionType | null;
+    votingEnded: boolean;
+    yesVotes: number;
+    noVotes: number;
+  };
+}
+
+export interface FinalResultResponse {
+  success: boolean;
+  data: {
+    proposalId: number;
+    title: string;
+    status: FinalResultStatus;
+    yesVotes: number;
+    noVotes: number;
+    isTied: boolean;
+    tieResolutionType: TieResolutionType | null;
+    tieResolvedAt: string | null;
+    tieResolvedByAdminId: number | null;
+    votingType: string;
+  };
+}
+
+export interface TieResolutionResponse {
+  success: boolean;
+  data: {
+    proposalId: number;
+    title: string;
+    tieResolutionType: TieResolutionType;
+    tieResolvedAt: string;
+    tieResolvedByAdminId: number;
+  };
+  message: string;
+}
+
 // Get all proposals
 export const getAllProposals = async (): Promise<ProposalsResponse> => {
   const response = await api.get('/proposals');
@@ -126,6 +174,37 @@ export const deactivateProposal = async (proposalId: number): Promise<{ success:
   return response.data;
 };
 
+// =============================================================================
+// TIE RESOLUTION API METHODS
+// =============================================================================
+
+// Get tie status for a proposal
+export const getTieStatus = async (proposalId: number): Promise<TieStatusResponse> => {
+  const response = await api.get(`/proposals/${proposalId}/tie-status`);
+  return response.data;
+};
+
+// Get the final result of a proposal (including tie resolution if applicable)
+export const getFinalResult = async (proposalId: number): Promise<FinalResultResponse> => {
+  const response = await api.get(`/proposals/${proposalId}/final-result`);
+  return response.data;
+};
+
+// Resolve a tied proposal with Status Quo (reject) - Admin only
+export const resolveTieStatusQuo = async (proposalId: number): Promise<TieResolutionResponse> => {
+  const response = await api.post(`/proposals/${proposalId}/resolve-tie/status-quo`);
+  return response.data;
+};
+
+// Resolve a tied proposal with Chairperson's vote - Admin only
+export const resolveTieChairpersonVote = async (
+  proposalId: number, 
+  voteChoice: boolean
+): Promise<TieResolutionResponse> => {
+  const response = await api.post(`/proposals/${proposalId}/resolve-tie/chairperson-vote`, { voteChoice });
+  return response.data;
+};
+
 export default {
   getAllProposals,
   getProposalsByStatus,
@@ -134,4 +213,9 @@ export default {
   getProposalResults,
   createProposal,
   deactivateProposal,
+  // Tie resolution methods
+  getTieStatus,
+  getFinalResult,
+  resolveTieStatusQuo,
+  resolveTieChairpersonVote,
 };

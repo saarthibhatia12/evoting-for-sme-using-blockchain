@@ -26,6 +26,10 @@ export interface MyVote {
   voteChoice: boolean;
   votedAt: string;
   proposalStatus: 'upcoming' | 'active' | 'ended';
+  // Vote weight info for display
+  votingType: 'simple' | 'quadratic';
+  voteWeight: number;      // For simple: shares, For quadratic: vote count
+  tokensSpent: number;     // For quadratic: cost (voteCount²)
 }
 
 export interface VoteRequest {

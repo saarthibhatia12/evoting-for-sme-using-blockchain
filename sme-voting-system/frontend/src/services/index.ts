@@ -43,7 +43,13 @@ export type {
   ProposalsResponse,
   ProposalResponse,
   ProposalResultResponse,
-  CreateProposalResponse
+  CreateProposalResponse,
+  // Tie resolution types
+  TieResolutionType,
+  FinalResultStatus,
+  TieStatusResponse,
+  FinalResultResponse,
+  TieResolutionResponse
 } from './proposalService';
 
 // Voting types

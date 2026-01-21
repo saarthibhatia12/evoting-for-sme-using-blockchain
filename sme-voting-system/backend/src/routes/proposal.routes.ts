@@ -11,6 +11,12 @@ import {
   getQuadraticResults,
 } from '../controllers/quadratic-voting.controller';
 import {
+  checkTieStatus,
+  getProposalFinalResult,
+  resolveTieStatusQuo,
+  resolveTieChairpersonVote,
+} from '../controllers/tie-resolution.controller';
+import {
   authenticate,
   requireShareholder,
   requireAdmin,
@@ -64,5 +70,36 @@ router.get('/:proposalId/token-balance', authenticate, requireShareholder, valid
  * Get the quadratic voting results for a proposal
  */
 router.get('/:proposalId/quadratic-results', authenticate, validateProposalIdParam, getQuadraticResults);
+
+// =============================================================================
+// TIE-BREAKING ROUTES
+// =============================================================================
+
+/**
+ * GET /proposals/:proposalId/tie-status
+ * Check if a proposal is tied and get tie status details
+ */
+router.get('/:proposalId/tie-status', authenticate, validateProposalIdParam, checkTieStatus);
+
+/**
+ * GET /proposals/:proposalId/final-result
+ * Get the final result of a proposal (including tie resolution if applicable)
+ */
+router.get('/:proposalId/final-result', authenticate, validateProposalIdParam, getProposalFinalResult);
+
+/**
+ * POST /proposals/:proposalId/resolve-tie/status-quo
+ * Resolve a tied proposal by rejecting it (Status Quo)
+ * Admin only
+ */
+router.post('/:proposalId/resolve-tie/status-quo', authenticate, requireShareholder, requireAdmin, validateProposalIdParam, resolveTieStatusQuo);
+
+/**
+ * POST /proposals/:proposalId/resolve-tie/chairperson-vote
+ * Resolve a tied proposal with the Chairperson's deciding vote
+ * Body: { voteChoice: boolean }
+ * Admin only
+ */
+router.post('/:proposalId/resolve-tie/chairperson-vote', authenticate, requireShareholder, requireAdmin, validateProposalIdParam, resolveTieChairpersonVote);
 
 export default router;

@@ -323,15 +323,17 @@ const Login: React.FC = () => {
         }
 
         .login-title {
-          font-size: var(--font-size-2xl);
-          font-weight: 700;
-          color: var(--color-gray-900);
+          font-size: var(--font-size-3xl);
+          font-weight: 800;
+          color: #000000 !important;
           margin: 0 0 var(--spacing-2);
+          text-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
         .login-subtitle {
-          font-size: var(--font-size-base);
-          color: var(--color-gray-500);
+          font-size: var(--font-size-lg);
+          color: #374151 !important;
+          font-weight: 500;
           margin: 0;
         }
 
@@ -340,8 +342,10 @@ const Login: React.FC = () => {
         }
 
         .login-description {
-          color: var(--color-gray-600);
+          color: #1f2937 !important;
+          font-size: var(--font-size-base);
           margin-bottom: var(--spacing-6);
+          line-height: 1.6;
         }
 
         .connect-btn {
@@ -365,6 +369,7 @@ const Login: React.FC = () => {
         .login-help {
           margin-top: var(--spacing-4);
           font-size: var(--font-size-sm);
+          color: #6b7280 !important;
         }
 
         .wallet-info {
@@ -378,7 +383,7 @@ const Login: React.FC = () => {
         .wallet-label {
           display: block;
           font-size: var(--font-size-sm);
-          color: var(--color-gray-500);
+          color: #6b7280 !important;
           margin-bottom: var(--spacing-1);
         }
 
@@ -386,7 +391,7 @@ const Login: React.FC = () => {
           font-family: monospace;
           font-size: var(--font-size-lg);
           font-weight: 600;
-          color: var(--color-gray-900);
+          color: #111827 !important;
         }
 
         .login-actions {

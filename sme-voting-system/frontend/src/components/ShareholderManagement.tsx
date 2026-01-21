@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { shareholderService } from '../services';
-import { Shareholder, RegisterShareholderRequest } from '../services/shareholderService';
+import { Shareholder, RegisterShareholderRequest, getShareCount } from '../services/shareholderService';
 import { useToast, LoadingSpinner } from './ui';
 
 interface ShareholderManagementProps {
@@ -171,7 +171,7 @@ const ShareholderManagement: React.FC<ShareholderManagementProps> = ({ onRefresh
   // Open edit modal
   const openEditModal = (shareholder: Shareholder) => {
     setSelectedShareholder(shareholder);
-    setEditShares(shareholder.shares);
+    setEditShares(getShareCount(shareholder));
     setShowEditModal(true);
     setError(null);
   };
@@ -182,7 +182,7 @@ const ShareholderManagement: React.FC<ShareholderManagementProps> = ({ onRefresh
   };
 
   // Calculate total shares
-  const totalShares = shareholders.filter(s => s.isActive).reduce((sum, s) => sum + s.shares, 0);
+  const totalShares = shareholders.filter(s => s.isActive).reduce((sum, s) => sum + getShareCount(s), 0);
   const activeShareholders = shareholders.filter(s => s.isActive).length;
 
   if (loading) {
@@ -337,7 +337,7 @@ const ShareholderManagement: React.FC<ShareholderManagementProps> = ({ onRefresh
                   </td>
                   <td>{shareholder.email}</td>
                   <td className="shares-cell">
-                    <strong>{shareholder.shares.toLocaleString()}</strong>
+                    <strong>{getShareCount(shareholder).toLocaleString()}</strong>
                   </td>
                   <td>
                     {shareholder.isActive ? (

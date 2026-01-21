@@ -464,8 +464,106 @@ The project successfully achieved all primary objectives. A fully functional e-v
 | **Vote Immutability** | ✅ Complete | All votes recorded on blockchain, tamper-proof. |
 | **Wallet Authentication** | ✅ Complete | MetaMask-based, passwordless login. |
 | **Real-time Results** | ✅ Complete | Vote tallies update after each vote. |
+| **Tie Resolution** | ✅ Complete | Admin can resolve tied proposals with three resolution types. |
 
-### 7.1.2. Test Scenario: Quadratic Voting in Action
+### 7.1.2. Tie-Breaking Policy
+
+When a proposal ends with equal YES and NO votes, the system implements an **Admin Tie-Breaking Mechanism** to reach a final decision. This ensures that tied proposals do not remain in limbo indefinitely.
+
+#### Resolution Types
+
+The Admin/Chairperson can resolve a tie using one of three methods:
+
+| Resolution Type | Description | Final Status |
+|-----------------|-------------|--------------|
+| **STATUS_QUO_REJECT** | Proposal is rejected, maintaining the status quo (default conservative approach) | REJECTED |
+| **CHAIRPERSON_YES** | Admin casts the deciding vote in favor of the proposal | APPROVED |
+| **CHAIRPERSON_NO** | Admin casts the deciding vote against the proposal | REJECTED |
+
+#### How It Works
+
+1. **Tie Detection**: When voting closes, if `yesVotes == noVotes`, the proposal is marked as tied
+2. **Admin Resolution**: Only the admin can resolve the tie by calling `resolveTie(proposalId, resolutionType)`
+3. **On-Chain Recording**: The resolution is permanently recorded on the blockchain via the `TieResolved` event
+4. **Immutability**: Once resolved, the decision cannot be changed (prevents tampering)
+
+#### Smart Contract Integration
+
+Both `Voting.sol` (simple voting) and `QuadraticVoting.sol` implement identical tie resolution functionality:
+
+```solidity
+// Tie resolution storage
+mapping(uint256 => string) public tieResolution;
+
+// Event emitted when tie is resolved
+event TieResolved(uint256 indexed proposalId, string resolutionType);
+
+// Admin-only function to resolve ties
+function resolveTie(uint256 _proposalId, string memory _type) external onlyAdmin {
+    require(!proposals[_proposalId].votingOpen, "Voting must be closed to resolve tie");
+    require(proposals[_proposalId].yesVotes == proposals[_proposalId].noVotes, "Proposal is not tied");
+    require(bytes(tieResolution[_proposalId]).length == 0, "Tie already resolved");
+    require(
+        keccak256(bytes(_type)) == keccak256(bytes("STATUS_QUO_REJECT")) ||
+        keccak256(bytes(_type)) == keccak256(bytes("CHAIRPERSON_YES")) ||
+        keccak256(bytes(_type)) == keccak256(bytes("CHAIRPERSON_NO")),
+        "Invalid resolution type"
+    );
+    
+    tieResolution[_proposalId] = _type;
+    emit TieResolved(_proposalId, _type);
+}
+
+// Query tie resolution
+function getTieResolution(uint256 _proposalId) external view returns (string memory) {
+    return tieResolution[_proposalId];
+}
+```
+
+#### Example Scenario
+
+**Proposal:** "Should we expand to a new office?"
+- **YES Votes:** 50 shares (from 2 shareholders)
+- **NO Votes:** 50 shares (from 2 other shareholders)
+- **Result:** TIE (50-50)
+
+**Admin Decision:** After discussion with the board, the admin decides to maintain the status quo:
+```bash
+# Admin calls smart contract
+resolveTie(proposalId: 1, resolutionType: "STATUS_QUO_REJECT")
+
+# Blockchain emits event
+TieResolved(proposalId: 1, resolutionType: "STATUS_QUO_REJECT")
+
+# Final result: Proposal REJECTED
+```
+
+#### Validation Rules
+
+| Rule | Description | Error Message |
+|------|-------------|---------------|
+| ✅ Voting must be closed | Cannot resolve while voting is still open | "Voting must be closed to resolve tie" |
+| ✅ Must be actual tie | yesVotes must equal noVotes | "Proposal is not tied" |
+| ✅ Valid resolution type | Only 3 types allowed | "Invalid resolution type" |
+| ✅ Admin-only | Non-admins cannot resolve | "Only admin can call this function" |
+| ✅ One-time resolution | Cannot change resolution after it's set | "Tie already resolved" |
+
+#### Test Coverage
+
+The tie resolution functionality is thoroughly tested with **28 test cases** covering:
+- ✅ All three resolution types (STATUS_QUO_REJECT, CHAIRPERSON_YES, CHAIRPERSON_NO)
+- ✅ Admin-only access control
+- ✅ Premature resolution prevention
+- ✅ Non-tied proposal rejection
+- ✅ Double resolution prevention
+- ✅ Invalid resolution type rejection
+- ✅ 0-0 ties (no votes cast)
+- ✅ Complex multi-voter tie scenarios
+- ✅ Both Simple and Quadratic voting types
+
+**Test Results:** 144/144 tests passing ✅
+
+### 7.1.3. Test Scenario: Quadratic Voting in Action
 
 A test was conducted with 3 shareholders voting on a Quadratic proposal with a BasePool of 100 tokens:
 
